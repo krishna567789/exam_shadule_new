@@ -105,6 +105,7 @@ class UserProfileController extends GetxController {
   }
 
   Future<void> submitForm() async {
+    Get.offAll(()=> const SessionSetupScreen());
     if (profileImage.value == null) {
       Get.snackbar('Error', 'Please upload a profile photo', backgroundColor: Colors.red);
       return;
@@ -122,7 +123,7 @@ class UserProfileController extends GetxController {
     XFile compressedFrontImage = await compressImage(frontImage.value!);
     XFile compressedBackImage = await compressImage(backImage.value!);
 
-    var request = http.MultipartRequest('POST', Uri.parse('https://bio.ubrosoft.com/api/users'));
+  //  var request = http.MultipartRequest('POST', Uri.parse('https://bio.ubrosoft.com/api/users'));
     //Here is store data in local db
     UserProfileModel userProfile = UserProfileModel(
       name: nameController.text,
@@ -137,53 +138,53 @@ class UserProfileController extends GetxController {
       photo: profileImage.value?.path,
     );
     //Here is store data in local db
-    request.fields.addAll({
-      'name': nameController.text,
-      'father_name': fatherController.text,
-      'mobile_number': mobileController.text,
-      'email': emailController.text,
-      'address': addressController.text,
-      'center_name': centerNameController.text,
-      'center_code': centerCodeController.text,
-    });
-    request.files.add(await http.MultipartFile.fromPath('aadhar_front', compressedFrontImage.path));
-    request.files.add(await http.MultipartFile.fromPath('aadhar_back', compressedBackImage.path));
-    request.files.add(await http.MultipartFile.fromPath('photo', compressedProfileImage.path));
+    // request.fields.addAll({
+    //   'name': nameController.text,
+    //   'father_name': fatherController.text,
+    //   'mobile_number': mobileController.text,
+    //   'email': emailController.text,
+    //   'address': addressController.text,
+    //   'center_name': centerNameController.text,
+    //   'center_code': centerCodeController.text,
+    // });
+    // request.files.add(await http.MultipartFile.fromPath('aadhar_front', compressedFrontImage.path));
+    // request.files.add(await http.MultipartFile.fromPath('aadhar_back', compressedBackImage.path));
+    // request.files.add(await http.MultipartFile.fromPath('photo', compressedProfileImage.path));
 
-    try {
-      Get.dialog(
-        Center(
-          child: CircularProgressIndicator(color: Color(0xff6388bd),),
-        ),
-        barrierDismissible: false, // Prevent closing dialog by tapping outside
-      );
-      var streamedResponse = await request.send();
-      var response = await http.Response.fromStream(streamedResponse);
-      print("API URL: ${response.request?.url} | Response: ${response.body}");
-
-      if (response.statusCode == 200) {
-        Get.back();
-        SharedPreferences prefs = await SharedPreferences.getInstance();
-        await prefs.setString('center_name', centerNameController.text);
-        await prefs.setString('center_code', centerCodeController.text);
-        print(prefs);
-        await UserProfileHelper().storeUserProfile(userProfile);
-        Get.snackbar('Success', 'Data submitted successfully!', backgroundColor: Colors.green);
-        Get.offAll(()=> const SessionSetupScreen());
-      } else {
-        if(response.statusCode == 302){
-          Get.back();
-
-          Get.snackbar('Error', 'Email And Mobile number is already registered!', backgroundColor: Colors.red);
-        }
-        print(response.statusCode);
-        print(response.request?.url.data);
-      }
-    } catch (e) {
-      Get.back();
-
-      print('Error: $e');
-      Get.snackbar('Error', 'Something went wrong. Please try again later.', backgroundColor: Colors.red);
-    }
+    // try {
+    //   Get.dialog(
+    //     Center(
+    //       child: CircularProgressIndicator(color: Color(0xff6388bd),),
+    //     ),
+    //     barrierDismissible: false, // Prevent closing dialog by tapping outside
+    //   );
+      //var streamedResponse = await request.send();
+     // var response = await http.Response.fromStream(streamedResponse);
+     //  print("API URL: ${response.request?.url} | Response: ${response.body}");
+     //
+     //  if (response.statusCode == 200) {
+     //    Get.back();
+     //    SharedPreferences prefs = await SharedPreferences.getInstance();
+     //    await prefs.setString('center_name', centerNameController.text);
+     //    await prefs.setString('center_code', centerCodeController.text);
+     //    print(prefs);
+     //    await UserProfileHelper().storeUserProfile(userProfile);
+     //    Get.snackbar('Success', 'Data submitted successfully!', backgroundColor: Colors.green);
+     //    Get.offAll(()=> const SessionSetupScreen());
+     //  } else {
+     //    if(response.statusCode == 302){
+     //      Get.back();
+     //
+     //      Get.snackbar('Error', 'Email And Mobile number is already registered!', backgroundColor: Colors.red);
+     //    }
+    //     print(response.statusCode);
+    //     print(response.request?.url.data);
+    //   }
+    // } catch (e) {
+    //   Get.back();
+    //
+    //   print('Error: $e');
+    //   Get.snackbar('Error', 'Something went wrong. Please try again later.', backgroundColor: Colors.red);
+    // }
   }
 }

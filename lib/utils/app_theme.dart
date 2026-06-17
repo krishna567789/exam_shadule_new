@@ -19,11 +19,11 @@ class AppTheme {
         primary: primaryBlue,
         background: backgroundLight,
       ),
-      textTheme: GoogleFonts.interTextTheme().copyWith(
-        displayLarge: GoogleFonts.inter(color: textDark, fontWeight: FontWeight.bold),
-        displayMedium: GoogleFonts.inter(color: textDark, fontWeight: FontWeight.bold),
-        bodyLarge: GoogleFonts.inter(color: textDark),
-        bodyMedium: GoogleFonts.inter(color: textLight),
+      textTheme: GoogleFonts.outfitTextTheme().copyWith(
+        displayLarge: GoogleFonts.outfit(color: textDark, fontWeight: FontWeight.bold),
+        displayMedium: GoogleFonts.outfit(color: textDark, fontWeight: FontWeight.bold),
+        bodyLarge: GoogleFonts.outfit(color: textDark),
+        bodyMedium: GoogleFonts.outfit(color: textLight),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(

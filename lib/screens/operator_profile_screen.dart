@@ -2,8 +2,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:get/get.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../utils/app_theme.dart';
-import '../widgets/custom_button.dart';
 import '../controller/user_profile_controller.dart';
 import 'login_screen.dart';
 
@@ -16,10 +16,11 @@ class OperatorProfileScreen extends StatefulWidget {
 
 class _OperatorProfileScreenState extends State<OperatorProfileScreen> {
   final UserProfileController _profileController = Get.put(UserProfileController());
-  
+
   final _cityController = TextEditingController();
   final _stateController = TextEditingController();
   bool _isLoading = true;
+  String _operatorId = "OP-2024-99";
 
   @override
   void initState() {
@@ -41,7 +42,7 @@ class _OperatorProfileScreenState extends State<OperatorProfileScreen> {
         _profileController.nameController.text = prefs.getString('operator_name') ?? prefs.getString('name') ?? "Rahul Sharma";
         _profileController.centerNameController.text = prefs.getString('center_name') ?? "Delhi Examination Center";
         _profileController.centerCodeController.text = prefs.getString('center_code') ?? "DEX1234";
-        
+
         String cityState = prefs.getString('operator_city_state') ?? "New Delhi, Delhi";
         List<String> parts = cityState.split(',');
         if (parts.length >= 2) {
@@ -56,6 +57,8 @@ class _OperatorProfileScreenState extends State<OperatorProfileScreen> {
         _profileController.emailController.text = prefs.getString('operator_email') ?? "rahul.sharma@example.com";
         _profileController.fatherController.text = prefs.getString('father_name') ?? "N/A";
         
+        _operatorId = prefs.getString('operator_id') ?? "OP-2024-99";
+
         _isLoading = false;
       });
     } catch (e) {
@@ -73,12 +76,12 @@ class _OperatorProfileScreenState extends State<OperatorProfileScreen> {
     await prefs.remove('operator_city_state');
     await prefs.remove('center_name');
     await prefs.remove('center_code');
-    
+
     // Clear controller files
     _profileController.profileImage.value = null;
     _profileController.frontImage.value = null;
     _profileController.backImage.value = null;
-    
+
     Get.offAll(() => const LoginScreen());
   }
 
@@ -99,10 +102,10 @@ class _OperatorProfileScreenState extends State<OperatorProfileScreen> {
         phone.isEmpty ||
         email.isEmpty) {
       Get.snackbar(
-        "Required Fields",
+        "Validation Error",
         "Please fill in all operator details to proceed.",
-        backgroundColor: Colors.orangeAccent,
-        colorText: Colors.black,
+        backgroundColor: AppTheme.errorRed,
+        colorText: Colors.white,
         snackPosition: SnackPosition.BOTTOM,
       );
       return;
@@ -110,10 +113,10 @@ class _OperatorProfileScreenState extends State<OperatorProfileScreen> {
 
     if (_profileController.profileImage.value == null) {
       Get.snackbar(
-        "Upload Photo",
+        "Validation Error",
         "Please tap on the profile circle at the top to capture your photo.",
-        backgroundColor: Colors.orangeAccent,
-        colorText: Colors.black,
+        backgroundColor: AppTheme.errorRed,
+        colorText: Colors.white,
         snackPosition: SnackPosition.BOTTOM,
       );
       return;
@@ -121,274 +124,506 @@ class _OperatorProfileScreenState extends State<OperatorProfileScreen> {
 
     if (_profileController.frontImage.value == null || _profileController.backImage.value == null) {
       Get.snackbar(
-        "Upload Aadhaar",
+        "Validation Error",
         "Please capture both Aadhaar Front and Back photos to proceed.",
-        backgroundColor: Colors.orangeAccent,
-        colorText: Colors.black,
+        backgroundColor: AppTheme.errorRed,
+        colorText: Colors.white,
         snackPosition: SnackPosition.BOTTOM,
       );
       return;
     }
-
-    // Set combined address field in controller
     _profileController.addressController.text = "$city, $state";
-
-    // Call API submit
     await _profileController.submitForm();
   }
 
   @override
   Widget build(BuildContext context) {
-    const Color steelBlueColor = Color(0xFF6388BD);
-    const Color cardBgColor = Colors.white;
+    const Color cyberBlue = Color(0xFF2196F3);
+    const Color cyberCyan = Color(0xFF64B5F6);
+    const Color textMuted = Color(0xFF90A4AE);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F7FB),
+      backgroundColor: const Color(0xFF03081A),
       appBar: AppBar(
-        backgroundColor: steelBlueColor,
+        backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: true,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: const Icon(Icons.arrow_back, color: cyberCyan),
           onPressed: _handleLogout,
         ),
-        title: const Text(
+        title: Text(
           "Operator Profile",
-          style: TextStyle(
+          style: GoogleFonts.outfit(
             color: Colors.white,
-            fontSize: 20,
-            fontWeight: FontWeight.w500,
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1.2,
+            shadows: [
+              Shadow(
+                color: cyberBlue.withOpacity(0.5),
+                blurRadius: 8,
+              ),
+            ],
           ),
         ),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: steelBlueColor))
+          ? const Center(child: CircularProgressIndicator(color: cyberBlue))
           : SafeArea(
-              child: Column(
-                children: [
-                  Expanded(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-                      child: Column(
-                        children: [
-                          Container(
-                            width: double.infinity,
-                            decoration: BoxDecoration(
-                              color: cardBgColor,
-                              borderRadius: BorderRadius.circular(24),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.06),
-                                  blurRadius: 15,
-                                  offset: const Offset(0, 8),
-                                ),
-                              ],
-                            ),
-                            padding: const EdgeInsets.all(24),
-                            child: Column(
-                              children: [
-                                // Avatar Picker
-                                Obx(() {
-                                  final imageFile = _profileController.profileImage.value;
-                                  return GestureDetector(
-                                    onTap: () => _profileController.pickImage(true),
-                                    child: Stack(
-                                      children: [
-                                        Container(
-                                          width: 100,
-                                          height: 100,
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFFD6E2F0),
-                                            shape: BoxShape.circle,
-                                            image: imageFile != null
-                                                ? DecorationImage(
-                                                    image: FileImage(imageFile),
-                                                    fit: BoxFit.cover,
-                                                  )
-                                                : null,
-                                          ),
-                                          child: imageFile == null
-                                              ? const Icon(
-                                                  Icons.person,
-                                                  size: 48,
-                                                  color: Color(0xFF1E293B),
-                                                )
-                                              : null,
-                                        ),
-                                        Positioned(
-                                          bottom: 0,
-                                          right: 0,
-                                          child: Container(
-                                            padding: const EdgeInsets.all(6),
-                                            decoration: const BoxDecoration(
-                                              color: steelBlueColor,
-                                              shape: BoxShape.circle,
+                  child: Column(
+                    children: [
+                      Expanded(
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+                          child: Column(
+                            children: [
+                              // First Card: Profile & Name & Status/ID (Top-Left and Top-Right Brackets only)
+                              _buildHudCard(
+                                showTopLeft: true,
+                                showTopRight: true,
+                                showBottomLeft: false,
+                                showBottomRight: false,
+                                child: Column(
+                                  children: [
+                                    // Avatar Picker
+                                    Obx(() {
+                                      final imageFile = _profileController.profileImage.value;
+                                      return GestureDetector(
+                                        onTap: () => _profileController.pickImage(true),
+                                        child: Stack(
+                                          children: [
+                                            Container(
+                                              width: 100,
+                                              height: 100,
+                                              decoration: BoxDecoration(
+                                                shape: BoxShape.circle,
+                                                border: Border.all(
+                                                  color: cyberBlue,
+                                                  width: 2.0,
+                                                ),
+                                                boxShadow: [
+                                                  BoxShadow(
+                                                    color: cyberBlue.withOpacity(0.3),
+                                                    blurRadius: 15,
+                                                    spreadRadius: 1,
+                                                  ),
+                                                ],
+                                              ),
+                                              child: ClipOval(
+                                                child: imageFile != null
+                                                    ? Image.file(
+                                                        imageFile,
+                                                        fit: BoxFit.cover,
+                                                      )
+                                                    : Container(
+                                                        color: const Color(0xFF0D254F).withOpacity(0.5),
+                                                        child: const Icon(
+                                                          Icons.face_retouching_natural,
+                                                          size: 48,
+                                                          color: cyberCyan,
+                                                        ),
+                                                      ),
+                                              ),
                                             ),
-                                            child: const Icon(
-                                              Icons.camera_alt,
-                                              size: 14,
-                                              color: Colors.white,
+                                            Positioned(
+                                              bottom: 0,
+                                              right: 0,
+                                              child: Container(
+                                                padding: const EdgeInsets.all(6),
+                                                decoration: BoxDecoration(
+                                                  color: const Color(0xFF2196F3),
+                                                  shape: BoxShape.circle,
+                                                  border: Border.all(
+                                                    color: const Color(0xFF03081A),
+                                                    width: 1.5,
+                                                  ),
+                                                ),
+                                                child: const Icon(
+                                                  Icons.camera_alt,
+                                                  size: 14,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    }),
+                                    const SizedBox(height: 20),
+
+                                    // Operator Name Field
+                                    _buildNameField(cyberBlue),
+                                    const SizedBox(height: 20),
+
+                                    // Verified Status and ID Number badges
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFF0D254F).withOpacity(0.3),
+                                              borderRadius: BorderRadius.circular(8),
+                                              border: Border.all(
+                                                color: const Color(0xFF154385).withOpacity(0.6),
+                                              ),
+                                            ),
+                                            child: Column(
+                                              children: [
+                                                Text(
+                                                  "VERIFIED STATUS",
+                                                  style: GoogleFonts.outfit(
+                                                    fontSize: 10,
+                                                    color: textMuted,
+                                                    letterSpacing: 1.0,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 6),
+                                                Row(
+                                                  mainAxisAlignment: MainAxisAlignment.center,
+                                                  children: [
+                                                    const Icon(
+                                                      Icons.check_circle_outline,
+                                                      color: cyberCyan,
+                                                      size: 14,
+                                                    ),
+                                                    const SizedBox(width: 4),
+                                                    Text(
+                                                      "Active",
+                                                      style: GoogleFonts.outfit(
+                                                        fontSize: 14,
+                                                        fontWeight: FontWeight.bold,
+                                                        color: cyberCyan,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFF0D254F).withOpacity(0.3),
+                                              borderRadius: BorderRadius.circular(8),
+                                              border: Border.all(
+                                                color: const Color(0xFF154385).withOpacity(0.6),
+                                              ),
+                                            ),
+                                            child: Column(
+                                              children: [
+                                                Text(
+                                                  "ID NUMBER",
+                                                  style: GoogleFonts.outfit(
+                                                    fontSize: 10,
+                                                    color: textMuted,
+                                                    letterSpacing: 1.0,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 6),
+                                                Text(
+                                                  _operatorId,
+                                                  style: GoogleFonts.outfit(
+                                                    fontSize: 14,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Colors.white,
+                                                  ),
+                                                ),
+                                              ],
                                             ),
                                           ),
                                         ),
                                       ],
                                     ),
-                                  );
-                                }),
-                                const SizedBox(height: 16),
-                                
-                                // Operator Name Input Field
-                                _buildNameField(steelBlueColor),
-                                const SizedBox(height: 24),
-                                const Divider(color: Color(0xFFE2E8F0), thickness: 1),
-                                const SizedBox(height: 20),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 20),
 
-                                // Center Information Section
-                                _buildSectionHeader("Center Information", steelBlueColor),
-                                const SizedBox(height: 16),
-                                _buildInputField(
-                                  icon: Icons.apartment,
-                                  label: "Center Name",
-                                  controller: _profileController.centerNameController,
-                                  iconColor: steelBlueColor,
-                                ),
-                                const SizedBox(height: 20),
-                                _buildInputField(
-                                  icon: Icons.qr_code,
-                                  label: "Center Code",
-                                  controller: _profileController.centerCodeController,
-                                  iconColor: steelBlueColor,
-                                ),
-                                const SizedBox(height: 20),
-                                Row(
+                              // Second Card: Center Information (Top-Left and Bottom-Right Brackets only)
+                              _buildHudCard(
+                                showTopLeft: true,
+                                showTopRight: false,
+                                showBottomLeft: false,
+                                showBottomRight: true,
+                                child: Column(
                                   children: [
-                                    Expanded(
-                                      child: _buildInputField(
-                                        icon: Icons.location_city,
-                                        label: "City",
-                                        controller: _cityController,
-                                        iconColor: steelBlueColor,
-                                      ),
+                                    _buildSectionHeader("Center Information", Icons.apartment, cyberBlue),
+                                    const SizedBox(height: 16),
+                                    _buildInputField(
+                                      icon: Icons.apartment,
+                                      label: "Center Name",
+                                      controller: _profileController.centerNameController,
+                                      iconColor: cyberCyan,
                                     ),
-                                    const SizedBox(width: 16),
+                                    const SizedBox(height: 16),
+                                    _buildInputField(
+                                      icon: Icons.qr_code,
+                                      label: "Center Code",
+                                      controller: _profileController.centerCodeController,
+                                      iconColor: cyberCyan,
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: _buildInputField(
+                                            icon: Icons.location_city,
+                                            label: "City",
+                                            controller: _cityController,
+                                            iconColor: cyberCyan,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: _buildInputField(
+                                            icon: Icons.map_outlined,
+                                            label: "State",
+                                            controller: _stateController,
+                                            iconColor: cyberCyan,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+
+                              // Third Card: Contact Details
+                              _buildHudCard(
+                                showTopLeft: true,
+                                showTopRight: false,
+                                showBottomLeft: false,
+                                showBottomRight: true,
+                                child: Column(
+                                  children: [
+                                    _buildSectionHeader("Contact Details", Icons.contact_mail, cyberBlue),
+                                    const SizedBox(height: 16),
+                                    _buildInputField(
+                                      icon: Icons.phone,
+                                      label: "Phone Number",
+                                      controller: _profileController.mobileController,
+                                      iconColor: cyberCyan,
+                                      keyboardType: TextInputType.phone,
+                                    ),
+                                    const SizedBox(height: 16),
+                                    _buildInputField(
+                                      icon: Icons.mail_outline,
+                                      label: "Email",
+                                      controller: _profileController.emailController,
+                                      iconColor: cyberCyan,
+                                      keyboardType: TextInputType.emailAddress,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+
+                              // Fourth Card: Aadhaar Documents
+                              _buildHudCard(
+                                showTopLeft: true,
+                                showTopRight: false,
+                                showBottomLeft: false,
+                                showBottomRight: true,
+                                child: Column(
+                                  children: [
+                                    _buildSectionHeader("Aadhaar Documents", Icons.badge, cyberBlue),
+                                    const SizedBox(height: 16),
+                                    Obx(() => Row(
+                                          children: [
+                                            _buildAadhaarUploadCard(
+                                              label: "Aadhaar Front",
+                                              imageFile: _profileController.frontImage.value,
+                                              onTap: () => _profileController.pickImage(false, isFront: true),
+                                              steelBlueColor: cyberCyan,
+                                            ),
+                                            const SizedBox(width: 12),
+                                            _buildAadhaarUploadCard(
+                                              label: "Aadhaar Back",
+                                              imageFile: _profileController.backImage.value,
+                                              onTap: () => _profileController.pickImage(false, isFront: false),
+                                              steelBlueColor: cyberCyan,
+                                            ),
+                                          ],
+                                        )),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+
+                              // Info warning alert console box
+                              Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF0D254F).withOpacity(0.4),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: const Color(0xFF154385).withOpacity(0.6),
+                                    width: 1.0,
+                                  ),
+                                ),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Icon(
+                                      Icons.info_outline,
+                                      color: cyberCyan,
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 12),
                                     Expanded(
-                                      child: _buildInputField(
-                                        icon: Icons.map_outlined,
-                                        label: "State",
-                                        controller: _stateController,
-                                        iconColor: steelBlueColor,
+                                      child: Text(
+                                        "Please ensure all details match your current assignment before proceeding to the examination module.",
+                                        style: GoogleFonts.outfit(
+                                          fontSize: 12,
+                                          color: textMuted,
+                                          height: 1.4,
+                                        ),
                                       ),
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 24),
-
-                                // Contact Details Section
-                                _buildSectionHeader("Contact Details", steelBlueColor),
-                                const SizedBox(height: 16),
-                                _buildInputField(
-                                  icon: Icons.phone,
-                                  label: "Phone Number",
-                                  controller: _profileController.mobileController,
-                                  iconColor: steelBlueColor,
-                                  keyboardType: TextInputType.phone,
-                                ),
-                                const SizedBox(height: 20),
-                                _buildInputField(
-                                  icon: Icons.mail_outline,
-                                  label: "Email",
-                                  controller: _profileController.emailController,
-                                  iconColor: steelBlueColor,
-                                  keyboardType: TextInputType.emailAddress,
-                                ),
-                                const SizedBox(height: 24),
-
-                                // Aadhaar Upload Section
-                                _buildSectionHeader("Aadhaar Documents", steelBlueColor),
-                                const SizedBox(height: 16),
-                                Obx(() => Row(
-                                      children: [
-                                        _buildAadhaarUploadCard(
-                                          label: "Aadhaar Front",
-                                          imageFile: _profileController.frontImage.value,
-                                          onTap: () => _profileController.pickImage(false, isFront: true),
-                                          steelBlueColor: steelBlueColor,
-                                        ),
-                                        const SizedBox(width: 16),
-                                        _buildAadhaarUploadCard(
-                                          label: "Aadhaar Back",
-                                          imageFile: _profileController.backImage.value,
-                                          onTap: () => _profileController.pickImage(false, isFront: false),
-                                          steelBlueColor: steelBlueColor,
-                                        ),
-                                      ],
-                                    )),
-                              ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      // Custom Proceed button at bottom
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                        child: Container(
+                          width: double.infinity,
+                          height: 54,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(8),
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF1976D2), Color(0xFF2196F3)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                  color: cyberBlue.withOpacity(0.3),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 4)),
+                            ],
+                          ),
+                          child: ElevatedButton(
+                            onPressed: _handleSubmit,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.transparent,
+                              shadowColor: Colors.transparent,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: Text(
+                              "CONFIRM & PROCEED",
+                              style: GoogleFonts.outfit(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                                letterSpacing: 1.5,
+                              ),
                             ),
                           ),
-                        ],
+                        ),
                       ),
-                    ),
+                    ],
                   ),
-                  // Proceed Button at the bottom
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                    child: CustomButton(
-                      text: "Confirm & Proceed",
-                      backgroundColor: steelBlueColor,
-                      onPressed: _handleSubmit,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+                 ),
     );
   }
 
-  Widget _buildSectionHeader(String title, Color textColor) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Text(
-        title,
-        style: TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.bold,
-          color: textColor,
+  Widget _buildHudCard({
+    required Widget child,
+    bool showTopLeft = true,
+    bool showTopRight = true,
+    bool showBottomLeft = true,
+    bool showBottomRight = true,
+  }) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.all(2.0),
+      decoration: BoxDecoration(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: const Color(0xFF1A3D75).withOpacity(0.4),
+          width: 1.5,
         ),
       ),
+      padding: const EdgeInsets.all(20),
+      child: child,
+    );
+  }
+
+  Widget _buildSectionHeader(String title, IconData icon, Color accentColor) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, color: accentColor, size: 18),
+            const SizedBox(width: 8),
+            Text(
+              title,
+              style: GoogleFonts.outfit(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+                letterSpacing: 1.2,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Container(
+          height: 1,
+          width: double.infinity,
+          color: const Color(0xFF154385).withOpacity(0.5),
+        ),
+      ],
     );
   }
 
   Widget _buildNameField(Color iconColor) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          "Operator Name",
-          style: TextStyle(
-            fontSize: 12,
-            color: AppTheme.textLight,
+        Text(
+          "OPERATOR NAME",
+          style: GoogleFonts.outfit(
+            fontSize: 11,
+            color: const Color(0xFF90A4AE),
             fontWeight: FontWeight.w500,
+            letterSpacing: 1.1,
           ),
         ),
         const SizedBox(height: 6),
         TextField(
           controller: _profileController.nameController,
           textAlign: TextAlign.center,
-          style: const TextStyle(
-            fontSize: 20,
+          style: GoogleFonts.outfit(
+            fontSize: 18,
             fontWeight: FontWeight.bold,
-            color: AppTheme.textDark,
+            color: const Color(0xFF1C2D42),
           ),
           decoration: InputDecoration(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             filled: true,
-            fillColor: Colors.grey.shade50,
+            fillColor: Colors.white,
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey.shade200),
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: const Color(0xFF154385).withOpacity(0.4)),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(8),
               borderSide: BorderSide(color: iconColor, width: 1.5),
             ),
           ),
@@ -408,35 +643,60 @@ class _OperatorProfileScreenState extends State<OperatorProfileScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          label,
-          style: const TextStyle(
-            fontSize: 12,
-            color: AppTheme.textLight,
+          label.toUpperCase(),
+          style: GoogleFonts.outfit(
+            fontSize: 11,
+            color: const Color(0xFF90A4AE),
             fontWeight: FontWeight.w500,
+            letterSpacing: 1.0,
           ),
         ),
         const SizedBox(height: 6),
-        TextField(
-          controller: controller,
-          keyboardType: keyboardType,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: AppTheme.textDark,
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(
+              color: const Color(0xFF154385).withOpacity(0.4),
+              width: 1.0,
+            ),
           ),
-          decoration: InputDecoration(
-            prefixIcon: Icon(icon, color: iconColor, size: 20),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            filled: true,
-            fillColor: Colors.grey.shade50,
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey.shade200),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: iconColor, width: 1.5),
-            ),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE3F2FD),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Icon(
+                  icon,
+                  color: const Color(0xFF1976D2),
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  keyboardType: keyboardType,
+                  style: GoogleFonts.outfit(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: const Color(0xFF1C2D42),
+                  ),
+                  decoration: const InputDecoration(
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    contentPadding: EdgeInsets.zero,
+                    isDense: true,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ],
@@ -455,13 +715,13 @@ class _OperatorProfileScreenState extends State<OperatorProfileScreen> {
         child: Container(
           height: 120,
           decoration: BoxDecoration(
-            color: Colors.grey.shade50,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.grey.shade200),
+            color: const Color(0xFF0D254F).withOpacity(0.3),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: const Color(0xFF154385).withOpacity(0.6)),
           ),
           child: imageFile != null
               ? ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(8),
                   child: Image.file(
                     imageFile,
                     fit: BoxFit.cover,
@@ -471,14 +731,15 @@ class _OperatorProfileScreenState extends State<OperatorProfileScreen> {
               : Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.camera_alt_outlined, color: steelBlueColor, size: 28),
+                    Icon(Icons.camera_alt_outlined, color: steelBlueColor, size: 24),
                     const SizedBox(height: 8),
                     Text(
-                      label,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.textLight,
+                      label.toUpperCase(),
+                      style: GoogleFonts.outfit(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF90A4AE),
+                        letterSpacing: 1.0,
                       ),
                     ),
                   ],
@@ -488,3 +749,4 @@ class _OperatorProfileScreenState extends State<OperatorProfileScreen> {
     );
   }
 }
+

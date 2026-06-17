@@ -1,10 +1,8 @@
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:device_apps/device_apps.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter/services.dart';
-import 'package:xml/xml.dart';
 import 'package:image/image.dart' as img;
 
 class DeviceInfoController extends GetxController {
@@ -56,10 +54,10 @@ class DeviceInfoController extends GetxController {
       if (result != null && result is Map) {
         bool success = result['success'] ?? false;
         if (success) {
-          fingerprintImage    = result['image']    != null ? Uint8List.fromList(List<int>.from(result['image']))    : null;
+          final rawImageBytes = result['image'] != null ? Uint8List.fromList(List<int>.from(result['image'])) : null;
           fingerprintTemplate = result['template'] != null ? Uint8List.fromList(List<int>.from(result['template'])) : null;
 
-          if (fingerprintImage != null) {
+          if (rawImageBytes != null) {
             try {
               int width = result['width'] ?? 260;
               int height = result['height'] ?? 300;
@@ -67,11 +65,13 @@ class DeviceInfoController extends GetxController {
               img.Image decodedImage = img.Image.fromBytes(
                 width: width,
                 height: height,
-                bytes: fingerprintImage!.buffer,
+                bytes: rawImageBytes.buffer,
                 numChannels: 1,
               );
               
-              fingerprintImage = Uint8List.fromList(img.encodePng(decodedImage));
+              final pngBytes = Uint8List.fromList(img.encodePng(decodedImage));
+              fingerprintImage = pngBytes;
+              print("Encoded PNG successfully. Raw length: ${rawImageBytes.length}");
             } catch (e) {
               print("Image encoding error: $e");
             }
@@ -98,10 +98,11 @@ class DeviceInfoController extends GetxController {
 
       String msg = switch (e.code) {
         'SDK_NOT_ADDED'     => '${e.message}',
-        'DEVICE_NOT_FOUND'  => 'SecuGen HU20 connected nahi hai. USB OTG se lagao.',
+        'DEVICE_NOT_FOUND'  => 'SecuGen HU20 is not connected. Please connect via USB OTG.',
         'DEVICE_OPEN_FAILED'=> 'Device connection lost or scan cancelled.',
-        'CAPTURE_FAILED'    => 'Fingerprint capture failed. Finger sensor pe rakhein.',
-        'SDK_INIT_FAILED'   => 'SDK initialize nahi hua.',
+        'CAPTURE_FAILED'    => 'Fingerprint capture failed. Please place your finger on the sensor.',
+        'SDK_INIT_FAILED'   => 'SDK initialization failed.',
+        'LOW_QUALITY'       => e.message ?? 'Fingerprint quality is too low.',
         _                   => 'SecuGen Error (${e.code}): ${e.message}',
       };
 

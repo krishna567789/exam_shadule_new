@@ -22,6 +22,7 @@ import io.flutter.plugin.common.MethodChannel
 import SecuGen.FDxSDKPro.JSGFPLib
 import SecuGen.FDxSDKPro.SGFDxDeviceName
 import SecuGen.FDxSDKPro.SGFDxErrorCode
+import SecuGen.FDxSDKPro.SGDeviceInfoParam
 
 class MainActivity : FlutterFragmentActivity() {
 
@@ -80,18 +81,19 @@ class MainActivity : FlutterFragmentActivity() {
             try {
                 val usbManager = getSystemService(Context.USB_SERVICE) as UsbManager
 
+                var initError: Long = SGFDxErrorCode.SGFDX_ERROR_NONE
                 if (sgfpLib == null) {
                     sgfpLib = JSGFPLib(this, usbManager)
+                    initError = sgfpLib!!.Init(SGFDxDeviceName.SG_DEV_AUTO)
                 } else {
-                    // Ensure previous device session is closed. 
-                    // DO NOT call sgfpLib!!.Close() here! It destroys the JNI context and causes SIGSEGV on the second scan.
+                    // Ensure previous device session is closed before opening again.
+                    // Reusing the already initialized JSGFPLib instance avoids JNI memory corruption.
                     sgfpLib!!.CloseDevice()
                 }
 
-                var error = sgfpLib!!.Init(SGFDxDeviceName.SG_DEV_AUTO)
-                
-                if (error != SGFDxErrorCode.SGFDX_ERROR_NONE) {
-                    runOnUiThread { result.error("SDK_INIT_FAILED", "SecuGen device create failed: $error", null) }
+                if (initError != SGFDxErrorCode.SGFDX_ERROR_NONE) {
+                    sgfpLib = null
+                    runOnUiThread { result.error("SDK_INIT_FAILED", "SecuGen device create failed: $initError", null) }
                     return@Thread
                 }
 
@@ -119,23 +121,40 @@ class MainActivity : FlutterFragmentActivity() {
                     return@Thread
                 }
 
-                error = sgfpLib!!.OpenDevice(0)
+                var error = sgfpLib!!.OpenDevice(0)
                 
                 if (error != SGFDxErrorCode.SGFDX_ERROR_NONE) {
-                    runOnUiThread { result.error("DEVICE_OPEN_FAILED", "SecuGen HU20 open failed: $error. USB OTG connected hai?", null) }
+                    runOnUiThread { result.error("DEVICE_OPEN_FAILED", "SecuGen HU20 open failed: $error. Is USB OTG connected?", null) }
                     return@Thread
                 }
+
+                // Query correct image dimensions dynamically to avoid native buffer overflow crashes
+                val deviceInfo = SGDeviceInfoParam()
+                val infoError = sgfpLib!!.GetDeviceInfo(deviceInfo)
+                val width = if (infoError == SGFDxErrorCode.SGFDX_ERROR_NONE) deviceInfo.imageWidth else IMAGE_WIDTH
+                val height = if (infoError == SGFDxErrorCode.SGFDX_ERROR_NONE) deviceInfo.imageHeight else IMAGE_HEIGHT
 
                 // Brightness set karo
                 sgfpLib!!.SetBrightness(50)
 
-                // Image capture karo
-                val imageBuffer = ByteArray(IMAGE_WIDTH * IMAGE_HEIGHT)
+                // Image capture karo with correct dimension buffer
+                val imageBuffer = ByteArray(width * height)
                 error = sgfpLib!!.GetImage(imageBuffer)
 
                 if (error != SGFDxErrorCode.SGFDX_ERROR_NONE) {
                     sgfpLib!!.CloseDevice()
-                    runOnUiThread { result.error("CAPTURE_FAILED", "Fingerprint capture failed: $error. Finger sensor pe rakhein.", null) }
+                    runOnUiThread { result.error("CAPTURE_FAILED", "Fingerprint capture failed: $error. Please place your finger on the sensor.", null) }
+                    return@Thread
+                }
+
+                // Verify image quality >= 95
+                val qualityArray = IntArray(1)
+                val qError = sgfpLib!!.GetImageQuality(width.toLong(), height.toLong(), imageBuffer, qualityArray)
+                val quality = if (qError == SGFDxErrorCode.SGFDX_ERROR_NONE) qualityArray[0] else 0
+
+                if (quality < 95) {
+                    sgfpLib!!.CloseDevice()
+                    runOnUiThread { result.error("LOW_QUALITY", "Fingerprint quality is too low ($quality%). Minimum 95% required. Please scan again.", null) }
                     return@Thread
                 }
 
@@ -151,8 +170,9 @@ class MainActivity : FlutterFragmentActivity() {
                             "success"  to true,
                             "image"    to imageBuffer,
                             "template" to templateBuffer,
-                            "width"    to IMAGE_WIDTH,
-                            "height"   to IMAGE_HEIGHT
+                            "width"    to width,
+                            "height"   to height,
+                            "quality"  to quality
                         ))
                     }
                 } else {

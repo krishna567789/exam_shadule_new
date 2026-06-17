@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'dart:typed_data';
-import '../utils/app_theme.dart';
-import '../widgets/custom_button.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../models/candidate.dart';
 import 'package:get/get.dart';
 import '../controller/device_info_controller.dart';
-import '../controller/biomatric_controller.dart';
+
 class BiometricEnrollmentScreen extends StatefulWidget {
   final Candidate candidate;
 
@@ -17,8 +16,7 @@ class BiometricEnrollmentScreen extends StatefulWidget {
 
 class _BiometricEnrollmentScreenState extends State<BiometricEnrollmentScreen> {
   final DeviceInfoController _deviceInfoController = Get.put(DeviceInfoController());
-  final BiometricController _biometricController = Get.put(BiometricController());
-
+  
   bool _livePhotoCaptured = false;
   bool _leftThumbScanned = false;
   bool _rightThumbScanned = false;
@@ -43,187 +41,287 @@ class _BiometricEnrollmentScreenState extends State<BiometricEnrollmentScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Candidate Registered Successfully!'),
-        backgroundColor: AppTheme.successGreen,
+        backgroundColor: Color(0xFF10B981),
       ),
+    );
+  }
+
+  Widget _buildHudCard({
+    required Widget child,
+    bool showTopLeft = true,
+    bool showTopRight = true,
+    bool showBottomLeft = true,
+    bool showBottomRight = true,
+    EdgeInsetsGeometry padding = const EdgeInsets.all(16.0),
+  }) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.all(2.0),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0A1329).withOpacity(0.8),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: const Color(0xFF1A3D75).withOpacity(0.4),
+          width: 1.5,
+        ),
+      ),
+      padding: padding,
+      child: child,
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    const Color cyberBlue = Color(0xFF2196F3);
+    const Color cyberCyan = Color(0xFF64B5F6);
+    const Color textMuted = Color(0xFF90A4AE);
+
     return Scaffold(
-      backgroundColor: AppTheme.backgroundLight,
+      backgroundColor: const Color(0xFF03081A),
       appBar: AppBar(
-        backgroundColor: AppTheme.white,
-        foregroundColor: AppTheme.textDark,
+        backgroundColor: Colors.transparent,
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: cyberCyan),
+          onPressed: () => Navigator.pop(context),
+        ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Biometric Enrollment',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            Text(
+              'BIOMETRIC ENROLLMENT',
+              style: GoogleFonts.outfit(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.2,
+                shadows: [
+                  Shadow(
+                    color: cyberBlue.withOpacity(0.5),
+                    blurRadius: 8,
+                  ),
+                ],
+              ),
             ),
             Text(
               'Candidate: ${widget.candidate.name} (${widget.candidate.rollNo})',
-              style: const TextStyle(fontSize: 12, color: AppTheme.textLight),
+              style: GoogleFonts.outfit(
+                fontSize: 12,
+                color: cyberCyan,
+                letterSpacing: 0.5,
+              ),
             ),
           ],
         ),
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Reference Photo Card
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: AppTheme.backgroundLight,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Center(
-                          child: Text(
-                            widget.candidate.name.substring(0, 2).toUpperCase(),
-                            style: const TextStyle(
-                              color: AppTheme.textDark,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 18,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Reference Photo Card
+                          _buildHudCard(
+                            showTopLeft: true,
+                            showBottomRight: true,
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 48,
+                                  height: 48,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF112244),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: cyberBlue.withOpacity(0.5),
+                                    ),
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      widget.candidate.name.substring(0, min(widget.candidate.name.length, 2)).toUpperCase(),
+                                      style: GoogleFonts.outfit(
+                                        color: cyberCyan,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 18,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Reference Photo',
+                                        style: GoogleFonts.outfit(
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                          fontSize: 14,
+                                          letterSpacing: 1.0,
+                                        ),
+                                      ),
+                                      Text(
+                                        'Pre-registered image',
+                                        style: GoogleFonts.outfit(
+                                          fontSize: 12,
+                                          color: textMuted,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                TextButton.icon(
+                                  onPressed: () {},
+                                  icon: const Icon(Icons.remove_red_eye_outlined, size: 16, color: cyberCyan),
+                                  label: Text(
+                                    'View',
+                                    style: GoogleFonts.outfit(
+                                      color: cyberCyan,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  style: TextButton.styleFrom(
+                                    backgroundColor: const Color(0xFF112244),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Reference Photo',
-                              style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.textDark),
+                          const SizedBox(height: 24),
+                          Text(
+                            'REQUIRED CAPTURES',
+                            style: GoogleFonts.outfit(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                              letterSpacing: 1.5,
                             ),
-                            Text(
-                              'Pre-registered image',
-                              style: TextStyle(fontSize: 12, color: AppTheme.textLight),
-                            ),
-                          ],
+                          ),
+                          const SizedBox(height: 16),
+                          
+                          // Live Photo
+                          _buildCaptureCard(
+                            title: 'Live Photo',
+                            subtitle: _livePhotoCaptured ? 'Captured' : 'Pending Capture',
+                            icon: Icons.camera_alt_outlined,
+                            isCompleted: _livePhotoCaptured,
+                            buttonText: 'Capture Photo',
+                            onPressed: () {
+                              setState(() => _livePhotoCaptured = true);
+                            },
+                          ),
+                          
+                          const SizedBox(height: 12),
+                          
+                          _buildCaptureCard(
+                            title: 'Left Thumb',
+                            subtitle: _activeScan == 'left' ? 'Scanning...' : (_leftThumbScanned ? 'Scanned' : 'Pending Scan'),
+                            icon: Icons.fingerprint,
+                            isCompleted: _leftThumbScanned,
+                            isScanning: _activeScan == 'left',
+                            buttonText: 'Scan',
+                            imageBytes: _leftThumbImage,
+                            onCancel: () {
+                              _deviceInfoController.cancelScan();
+                            },
+                            onPressed: _activeScan != null ? null : () async {
+                              setState(() => _activeScan = 'left');
+                              bool success = await _deviceInfoController.scanFingerPrint();
+                              setState(() {
+                                _activeScan = null;
+                                if (success) {
+                                  _leftThumbScanned = true;
+                                  _leftThumbImage = _deviceInfoController.fingerprintImage;
+                                }
+                              });
+                            },
+                          ),
+                          
+                          const SizedBox(height: 12),
+                          
+                          _buildCaptureCard(
+                            title: 'Right Thumb',
+                            subtitle: _activeScan == 'right' ? 'Scanning...' : (_rightThumbScanned ? 'Scanned' : 'Pending Scan'),
+                            icon: Icons.fingerprint,
+                            isCompleted: _rightThumbScanned,
+                            isScanning: _activeScan == 'right',
+                            buttonText: 'Scan',
+                            imageBytes: _rightThumbImage,
+                            onCancel: () {
+                              _deviceInfoController.cancelScan();
+                            },
+                            onPressed: _activeScan != null ? null : () async {
+                              setState(() => _activeScan = 'right');
+                              bool success = await _deviceInfoController.scanFingerPrint();
+                              setState(() {
+                                _activeScan = null;
+                                if (success) {
+                                  _rightThumbScanned = true;
+                                  _rightThumbImage = _deviceInfoController.fingerprintImage;
+                                }
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    width: double.infinity,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      gradient: _isAllComplete
+                          ? const LinearGradient(
+                              colors: [Color(0xFF1976D2), Color(0xFF2196F3)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            )
+                          : null,
+                      color: _isAllComplete ? null : Colors.grey.shade800,
+                      boxShadow: _isAllComplete
+                          ? [
+                              BoxShadow(
+                                color: cyberBlue.withOpacity(0.3),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ]
+                          : [],
+                    ),
+                    child: ElevatedButton(
+                      onPressed: _isAllComplete ? _handleSave : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.transparent,
+                        shadowColor: Colors.transparent,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
                         ),
                       ),
-                      TextButton.icon(
-                        onPressed: () {},
-                        icon: const Icon(Icons.remove_red_eye_outlined, size: 16, color: AppTheme.textLight),
-                        label: const Text('View', style: TextStyle(color: AppTheme.textLight)),
-                        style: TextButton.styleFrom(
-                          backgroundColor: Colors.grey.shade100,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      child: Text(
+                        'SAVE & MARK REGISTERED',
+                        style: GoogleFonts.outfit(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: _isAllComplete ? Colors.white : Colors.white24,
+                          letterSpacing: 1.5,
                         ),
                       ),
-                    ],
+                    ),
                   ),
-                ),
+                ],
               ),
-              const SizedBox(height: 24),
-              const Text(
-                'Required Captures',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: AppTheme.textDark,
-                ),
-              ),
-              const SizedBox(height: 16),
-              
-              // Live Photo
-              _buildCaptureCard(
-                title: 'Live Photo',
-                subtitle: _livePhotoCaptured ? 'Captured' : 'Pending Capture',
-                icon: Icons.camera_alt_outlined,
-                isCompleted: _livePhotoCaptured,
-                buttonText: 'Capture Photo',
-                onPressed: () {
-                  setState(() => _livePhotoCaptured = true);
-                },
-              ),
-              
-              const SizedBox(height: 12),
-              
-              _buildCaptureCard(
-                title: 'Left Thumb',
-                subtitle: _activeScan == 'left' ? 'Scanning...' : (_leftThumbScanned ? 'Scanned' : 'Pending Scan'),
-                icon: Icons.fingerprint,
-                isCompleted: _leftThumbScanned,
-                isScanning: _activeScan == 'left',
-                buttonText: 'Scan',
-                imageBytes: _leftThumbImage,
-                onCancel: () {
-                  _deviceInfoController.cancelScan();
-                },
-                onPressed: _activeScan != null ? null : () async {
-                  setState(() => _activeScan = 'left');
-                  bool success = await _deviceInfoController.scanFingerPrint();
-                  setState(() {
-                    _activeScan = null;
-                    if (success) {
-                      _leftThumbScanned = true;
-                      _leftThumbImage = _deviceInfoController.fingerprintImage;
-                    }
-                  });
-                },
-              ),
-              
-              const SizedBox(height: 12),
-              
-              _buildCaptureCard(
-                title: 'Right Thumb',
-                subtitle: _activeScan == 'right' ? 'Scanning...' : (_rightThumbScanned ? 'Scanned' : 'Pending Scan'),
-                icon: Icons.fingerprint,
-                isCompleted: _rightThumbScanned,
-                isScanning: _activeScan == 'right',
-                buttonText: 'Scan',
-                imageBytes: _rightThumbImage,
-                onCancel: () {
-                  _deviceInfoController.cancelScan();
-                },
-                onPressed: _activeScan != null ? null : () async {
-                  setState(() => _activeScan = 'right');
-                  bool success = await _deviceInfoController.scanFingerPrint();
-                  setState(() {
-                    _activeScan = null;
-                    if (success) {
-                      _rightThumbScanned = true;
-                      _rightThumbImage = _deviceInfoController.fingerprintImage;
-                    }
-                  });
-                },
-              ),
-              
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              CustomButton(
-                text: 'Save & Mark Registered',
-                backgroundColor: _isAllComplete ? AppTheme.primaryBlue : Colors.grey.shade300,
-                textColor: _isAllComplete ? Colors.white : Colors.grey.shade500,
-                onPressed: _isAllComplete ? _handleSave : null,
-              ),
-            ],
+            ),
           ),
-        ),
-      ),
     );
   }
 
@@ -238,134 +336,221 @@ class _BiometricEnrollmentScreenState extends State<BiometricEnrollmentScreen> {
     VoidCallback? onCancel,
     Uint8List? imageBytes,
   }) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Row(
-          children: [
-            GestureDetector(
-              onTap: imageBytes != null ? () {
-                showDialog(
-                  context: context,
-                  builder: (context) => Dialog(
-                    backgroundColor: Colors.transparent,
-                    insetPadding: const EdgeInsets.all(24),
-                    child: Container(
-                      decoration: BoxDecoration(
+    const Color cyberBlue = Color(0xFF2196F3);
+    const Color textMuted = Color(0xFF90A4AE);
+    const Color neonGreen = Color(0xFF10B981);
+    const Color errorRed = Color(0xFFEF5350);
+
+    return _buildHudCard(
+      showTopLeft: !isCompleted,
+      showBottomRight: !isCompleted,
+      showTopRight: isCompleted,
+      showBottomLeft: isCompleted,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          GestureDetector(
+            onTap: imageBytes != null
+                ? () {
+                    showDialog(
+                      context: context,
+                      builder: (context) => Dialog(
+                        backgroundColor: Colors.transparent,
+                        insetPadding: const EdgeInsets.all(24),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0A1329),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: cyberBlue.withOpacity(0.8),
+                              width: 1.5,
+                            ),
+                          ),
+                          padding: const EdgeInsets.all(20),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                "$title Fingerprint",
+                                style: GoogleFonts.outfit(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 18,
+                                  color: Colors.white,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              Container(
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: cyberBlue.withOpacity(0.5)),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Image.memory(
+                                    imageBytes,
+                                    fit: BoxFit.contain,
+                                    width: 260,
+                                    height: 300,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+                              Container(
+                                width: double.infinity,
+                                height: 42,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(8),
+                                  gradient: const LinearGradient(
+                                    colors: [Color(0xFF1976D2), Color(0xFF2196F3)],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                ),
+                                child: ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.transparent,
+                                    shadowColor: Colors.transparent,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  ),
+                                  onPressed: () => Navigator.pop(context),
+                                  child: Text(
+                                    'CLOSE',
+                                    style: GoogleFonts.outfit(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                      letterSpacing: 1.2,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+                : null,
+            child: Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: isCompleted ? const Color(0xFF0A2E24) : const Color(0xFF331616),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: isCompleted ? neonGreen.withOpacity(0.5) : errorRed.withOpacity(0.5),
+                  width: 1.5,
+                ),
+                image: imageBytes != null
+                    ? DecorationImage(
+                        image: MemoryImage(imageBytes),
+                        fit: BoxFit.cover,
+                      )
+                    : null,
+              ),
+              child: imageBytes == null
+                  ? Icon(
+                      isCompleted ? Icons.check : icon,
+                      color: isCompleted ? neonGreen : errorRed,
+                      size: 20,
+                    )
+                  : null,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: GoogleFonts.outfit(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    fontSize: 14,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  style: GoogleFonts.outfit(
+                    fontSize: 11,
+                    color: isCompleted ? neonGreen : textMuted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (!isCompleted)
+            isScanning
+                ? ElevatedButton.icon(
+                    onPressed: onCancel,
+                    icon: const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: errorRed),
+                    ),
+                    label: Text(
+                      'Cancel',
+                      style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF331616),
+                      foregroundColor: errorRed,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        side: const BorderSide(color: errorRed, width: 1),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    ),
+                  )
+                : ElevatedButton.icon(
+                    onPressed: onPressed,
+                    icon: Icon(icon, size: 16, color: Colors.white),
+                    label: Text(
+                      buttonText,
+                      style: GoogleFonts.outfit(
+                        fontWeight: FontWeight.bold,
                         color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text("$title Fingerprint", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppTheme.textDark)),
-                          const SizedBox(height: 16),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Image.memory(
-                              imageBytes,
-                              fit: BoxFit.contain,
-                              width: 260,
-                              height: 300,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppTheme.primaryBlue,
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                            ),
-                            onPressed: () => Navigator.pop(context),
-                            child: const Text('Close'),
-                          ),
-                        ],
                       ),
                     ),
-                  ),
-                );
-              } : null,
-              child: Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: isCompleted ? AppTheme.successGreen.withOpacity(0.1) : AppTheme.errorRed.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                  image: imageBytes != null ? DecorationImage(
-                    image: MemoryImage(imageBytes),
-                    fit: BoxFit.cover,
-                  ) : null,
-                ),
-                child: imageBytes == null ? Icon(
-                  isCompleted ? Icons.check : icon,
-                  color: isCompleted ? AppTheme.successGreen : Colors.red.shade300,
-                  size: 20,
-                ) : null,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.textDark),
-                  ),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: isCompleted ? AppTheme.successGreen : AppTheme.textLight,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: onPressed == null ? Colors.grey.shade800 : const Color(0xFF1A3D75),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        side: BorderSide(
+                          color: onPressed == null ? Colors.transparent : cyberBlue.withOpacity(0.5),
+                        ),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     ),
-                  ),
-                ],
-              ),
-            ),
-            if (!isCompleted)
-              isScanning
-                  ? ElevatedButton.icon(
-                      onPressed: onCancel,
-                      icon: const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.errorRed),
-                      ),
-                      label: const Text('Cancel'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.errorRed.withOpacity(0.1),
-                        foregroundColor: AppTheme.errorRed,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      ),
-                    )
-                  : ElevatedButton.icon(
-                      onPressed: onPressed,
-                      icon: Icon(icon, size: 16),
-                      label: Text(buttonText),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: onPressed == null ? Colors.grey.shade400 : AppTheme.primaryBlue,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      ),
-                    )
-            else
-              TextButton.icon(
-                onPressed: () {},
-                icon: const Icon(Icons.check, size: 16, color: AppTheme.successGreen),
-                label: const Text('Done', style: TextStyle(color: AppTheme.successGreen)),
-                style: TextButton.styleFrom(
-                  backgroundColor: AppTheme.successGreen.withOpacity(0.1),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  )
+          else
+            TextButton.icon(
+              onPressed: () {},
+              icon: const Icon(Icons.check, size: 16, color: neonGreen),
+              label: Text(
+                'Done',
+                style: GoogleFonts.outfit(
+                  color: neonGreen,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-          ],
-        ),
+              style: TextButton.styleFrom(
+                backgroundColor: const Color(0xFF0A2E24),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  side: const BorderSide(color: neonGreen, width: 1),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
+  
+  int min(int a, int b) => a < b ? a : b;
 }
+
