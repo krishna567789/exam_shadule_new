@@ -1,0 +1,52 @@
+name: exam_shadule_new
+description: "A new Flutter project."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+  google_fonts: ^6.2.1
+
+  # Dependencies copied from old app
+  app_settings: ^5.2.0
+  device_apps: ^2.2.0
+  device_info_plus: ^10.1.2
+  flutter_image_compress: ^2.4.0
+  flutter_usb: ^0.0.4
+  fluttertoast: ^8.2.12
+  google_mlkit_text_recognition: ^0.15.0
+  image_picker: ^1.1.2
+  local_auth: ^2.3.0
+  mantra_biometric: ^0.0.4
+  path_provider: ^2.1.5
+  permission_handler: ^11.3.1
+  shared_preferences: ^2.3.2
+  sqflite: ^2.4.1
+  url_launcher: ^6.3.1
+  usb_serial: ^0.5.2
+
+  animated_notch_bottom_bar: any
+  get: any
+  google_ml_kit: any
+  http: any
+  http_parser: any
+  image: any
+  path: any
+  provider: any
+  xml: any
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
