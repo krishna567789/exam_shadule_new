@@ -13,25 +13,22 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Flutter
+      - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: "3.24.5"
 
-      - name: Check Flutter Version
-        run: flutter --version
-
-      - name: Install Dependencies
+      - name: Install dependencies
         run: flutter pub get
 
-      - name: Analyze Code
+      - name: Analyze code
         run: flutter analyze
 
-      - name: Run Tests
+      - name: Run tests
         run: flutter test
 
-      - name: Build Debug APK
+      - name: Build APK
         run: flutter build apk --debug
