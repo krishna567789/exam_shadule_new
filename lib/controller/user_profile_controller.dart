@@ -1,28 +1,15 @@
+import 'dart:convert';
 import 'dart:io';
-import 'package:exam_shadule_new/models/device_model/user_profile_model.dart';
-import 'package:exam_shadule_new/screens/login_screen.dart';
 import 'package:exam_shadule_new/screens/session_setup_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:http/http.dart' as  http;
+import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-import 'device_local_db/user_profile_helper.dart';
-import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
-
-extension StringAadharCheck on String {
-  bool get isValidAadharNumber {
-    // Match Aadhaar with or without space: "1234 5678 9012" or "123456789012"
-    final spaced = RegExp(r'^[2-9]{1}[0-9]{3}\s[0-9]{4}\s[0-9]{4}$');
-    final unspaced = RegExp(r'^[2-9]{1}[0-9]{11}$');
-
-    return spaced.hasMatch(this.trim()) || unspaced.hasMatch(this.trim());
-  }
-}
-
+import 'package:path_provider/path_provider.dart';
 
 class UserProfileController extends GetxController {
   var profileImage = Rxn<File>();
@@ -34,157 +21,187 @@ class UserProfileController extends GetxController {
   final mobileController = TextEditingController();
   final emailController = TextEditingController();
   final addressController = TextEditingController();
+  final cityController = TextEditingController();
+  final stateController = TextEditingController();
   final centerNameController = TextEditingController();
   final centerCodeController = TextEditingController();
 
   final ImagePicker _picker = ImagePicker();
 
-  Future<void> requestPermissions() async {
-    PermissionStatus cameraPermission = await Permission.camera.request();
-    PermissionStatus locationPermission = await Permission.location.request();
+  Future<void> fetchOperatorDetails() async {
+    try {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      String? token = prefs.getString('token');
+      String? operatorId = prefs.getString('operator_id_db');
 
-    if (!cameraPermission.isGranted || !locationPermission.isGranted) {
-      Get.snackbar('Permission Denied', 'Please grant necessary permissions.');
-      return;
+      if (operatorId == null || operatorId.isEmpty) return;
+
+      print("--- FETCHING OPERATOR DETAILS ---");
+      final response = await http.get(
+        Uri.parse('https://bio.ubroapi.space/api/operator-users/$operatorId/details'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      );
+
+      print("Details Response: ${response.body}");
+
+      if (response.statusCode == 200) {
+        var responseData = json.decode(response.body);
+        if (responseData['status'] == true && responseData['data'] != null) {
+          var profile = responseData['data']['profile'];
+          if (profile != null) {
+            nameController.text = profile['name'] ?? "";
+            fatherController.text = profile['fatherName'] ?? "";
+            mobileController.text = profile['mobileNumber'] ?? "";
+            emailController.text = profile['email'] ?? "";
+            cityController.text = profile['city'] ?? "";
+            stateController.text = profile['state'] ?? "";
+            addressController.text = profile['address'] ?? "";
+            
+            // Save updated info to SharedPreferences
+            await prefs.setString('operator_name', nameController.text);
+            await prefs.setString('father_name', fatherController.text);
+            await prefs.setString('operator_phone', mobileController.text);
+            await prefs.setString('operator_city_state', "${cityController.text}, ${stateController.text}");
+          }
+        }
+      }
+    } catch (e) {
+      print("Error fetching details: $e");
     }
   }
 
+  Future<void> requestPermissions(ImageSource source) async {
+    if (source == ImageSource.camera) {
+      await Permission.camera.request();
+    } else {
+      if (Platform.isAndroid) {
+        await [Permission.photos, Permission.storage].request();
+      }
+    }
+    await Permission.location.request();
+  }
 
-
-
-  Future<void> pickImage(bool isProfileImage, {bool isFront = false}) async {
-    await requestPermissions();
-    XFile? pickedFile = await _picker.pickImage(source: ImageSource.camera);
+  Future<void> pickImage(bool isProfileImage, ImageSource source, {bool isFront = false}) async {
+    await requestPermissions(source);
+    XFile? pickedFile = await _picker.pickImage(source: source);
 
     if (pickedFile != null) {
       final file = File(pickedFile.path);
-
       if (isProfileImage) {
         profileImage.value = file;
       } else {
-        // Use Google ML Kit OCR
-        final inputImage = InputImage.fromFile(file);
-        final textRecognizer = TextRecognizer();
-        final RecognizedText recognizedText = await textRecognizer.processImage(inputImage);
-        await textRecognizer.close();
-
-        final extractedText = recognizedText.text;
-        final lines = extractedText.split('\n');
-
-        // ✅ Check for valid Aadhaar number format in any line
-        final validAadharLines = lines.where((line) => line.trim().isValidAadharNumber).toList();
-
-        // ✅ Look for Aadhaar-specific keywords
-        final textLower = extractedText.toLowerCase();
-        final hasGovtKeyword = textLower.contains('aadhaar') ||
-            textLower.contains('uidai') ||
-            textLower.contains('govt') ||
-            textLower.contains('government of india');
-
-        // Always accept the captured image to prevent blocking during user uploads
         if (isFront) {
           frontImage.value = file;
         } else {
           backImage.value = file;
         }
       }
-
       update();
     }
   }
 
+  Future<File?> compressImage(File imageFile) async {
+    try {
+      final dir = await getTemporaryDirectory();
+      final targetPath = "${dir.path}/${DateTime.now().millisecondsSinceEpoch}.jpg";
 
-  Future<XFile> compressImage(File imageFile) async {
-    final result = await FlutterImageCompress.compressAndGetFile(
-      imageFile.absolute.path,
-      imageFile.absolute.path.replaceAll(RegExp(r"\.jpg$"), "_compressed.jpg"),
-      quality: 70,
-    );
+      var result = await FlutterImageCompress.compressAndGetFile(
+        imageFile.absolute.path, 
+        targetPath,
+        quality: 70,
+        format: CompressFormat.jpeg,
+      );
 
-    return result!;
+      return result != null ? File(result.path) : null;
+    } catch (e) {
+      print("Compression Error: $e");
+      return imageFile;
+    }
   }
 
   Future<void> submitForm() async {
-    Get.offAll(()=> const SessionSetupScreen());
-    if (profileImage.value == null) {
-      Get.snackbar('Error', 'Please upload a profile photo', backgroundColor: Colors.red);
-      return;
-    }
-    if (frontImage.value == null) {
-      Get.snackbar('Error', 'Please upload Aadhaar front photo', backgroundColor: Colors.red);
-      return;
-    }
-    if (backImage.value == null) {
-      Get.snackbar('Error', 'Please upload Aadhaar back photo', backgroundColor: Colors.red);
-      return;
-    }
+    try {
+      Get.dialog(
+        const Center(child: CircularProgressIndicator(color: Color(0xff6388bd))),
+        barrierDismissible: false,
+      );
 
-    XFile compressedProfileImage = await compressImage(profileImage.value!);
-    XFile compressedFrontImage = await compressImage(frontImage.value!);
-    XFile compressedBackImage = await compressImage(backImage.value!);
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      String? token = prefs.getString('token');
 
-  //  var request = http.MultipartRequest('POST', Uri.parse('https://bio.ubrosoft.com/api/users'));
-    //Here is store data in local db
-    UserProfileModel userProfile = UserProfileModel(
-      name: nameController.text,
-      fatherName: fatherController.text,
-      mobileNumber: mobileController.text,
-      email: emailController.text,
-      address: addressController.text,
-      centerName: centerNameController.text,
-      centerCode: centerCodeController.text,
-      aadharFront: frontImage.value?.path,
-      aadharBack: backImage.value?.path,
-      photo: profileImage.value?.path,
-    );
-    //Here is store data in local db
-    // request.fields.addAll({
-    //   'name': nameController.text,
-    //   'father_name': fatherController.text,
-    //   'mobile_number': mobileController.text,
-    //   'email': emailController.text,
-    //   'address': addressController.text,
-    //   'center_name': centerNameController.text,
-    //   'center_code': centerCodeController.text,
-    // });
-    // request.files.add(await http.MultipartFile.fromPath('aadhar_front', compressedFrontImage.path));
-    // request.files.add(await http.MultipartFile.fromPath('aadhar_back', compressedBackImage.path));
-    // request.files.add(await http.MultipartFile.fromPath('photo', compressedProfileImage.path));
+      var request = http.MultipartRequest('POST', Uri.parse('https://bio.ubroapi.space/api/operator-users'));
+      
+      request.headers.addAll({
+        'Authorization': 'Bearer $token',
+        'Accept': 'application/json',
+      });
 
-    // try {
-    //   Get.dialog(
-    //     Center(
-    //       child: CircularProgressIndicator(color: Color(0xff6388bd),),
-    //     ),
-    //     barrierDismissible: false, // Prevent closing dialog by tapping outside
-    //   );
-      //var streamedResponse = await request.send();
-     // var response = await http.Response.fromStream(streamedResponse);
-     //  print("API URL: ${response.request?.url} | Response: ${response.body}");
-     //
-     //  if (response.statusCode == 200) {
-     //    Get.back();
-     //    SharedPreferences prefs = await SharedPreferences.getInstance();
-     //    await prefs.setString('center_name', centerNameController.text);
-     //    await prefs.setString('center_code', centerCodeController.text);
-     //    print(prefs);
-     //    await UserProfileHelper().storeUserProfile(userProfile);
-     //    Get.snackbar('Success', 'Data submitted successfully!', backgroundColor: Colors.green);
-     //    Get.offAll(()=> const SessionSetupScreen());
-     //  } else {
-     //    if(response.statusCode == 302){
-     //      Get.back();
-     //
-     //      Get.snackbar('Error', 'Email And Mobile number is already registered!', backgroundColor: Colors.red);
-     //    }
-    //     print(response.statusCode);
-    //     print(response.request?.url.data);
-    //   }
-    // } catch (e) {
-    //   Get.back();
-    //
-    //   print('Error: $e');
-    //   Get.snackbar('Error', 'Something went wrong. Please try again later.', backgroundColor: Colors.red);
-    // }
+      request.fields.addAll({
+        'name': nameController.text.trim(),
+        'fatherName': fatherController.text.trim(),
+        'mobileNumber': mobileController.text.trim(),
+        'email': emailController.text.trim(),
+        'state': stateController.text.trim(),
+        'city': cityController.text.trim(),
+        'address': addressController.text.trim(),
+      });
+
+      // Helper to add files with explicit content type
+      Future<void> addFileToRequest(String fieldName, File file) async {
+        File? compressed = await compressImage(file);
+        request.files.add(await http.MultipartFile.fromPath(
+          fieldName,
+          (compressed ?? file).path,
+          contentType: MediaType('image', 'jpeg'),
+        ));
+      }
+
+      if (frontImage.value != null) {
+        await addFileToRequest('aadharFront', frontImage.value!);
+      }
+      if (backImage.value != null) {
+        await addFileToRequest('aadharBack', backImage.value!);
+      }
+      if (profileImage.value != null) {
+        await addFileToRequest('photo', profileImage.value!);
+      }
+
+      print("--- SUBMIT PROFILE REQUEST ---");
+      print("URL: ${request.url}");
+      print("Fields: ${request.fields}");
+      print("Files: ${request.files.map((f) => "${f.field}: ${f.filename} (${f.contentType})").toList()}");
+
+      var streamedResponse = await request.send();
+      var response = await http.Response.fromStream(streamedResponse);
+
+      if (Get.isDialogOpen ?? false) Get.back();
+
+      print("--- SUBMIT PROFILE RESPONSE ---");
+      print("Status Code: ${response.statusCode}");
+      print("Response Body: ${response.body}");
+      print("-------------------------------");
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        await prefs.setBool('is_profile_completed', true);
+        await prefs.setString('operator_name', nameController.text.trim());
+        await prefs.setString('father_name', fatherController.text.trim());
+        await prefs.setString('operator_phone', mobileController.text.trim());
+        await prefs.setString('operator_city_state', "${cityController.text.trim()}, ${stateController.text.trim()}");
+
+        Get.snackbar('Success', 'Profile created successfully!', backgroundColor: Colors.greenAccent);
+        Get.offAll(() => const SessionSetupScreen());
+      } else {
+        var errorData = json.decode(response.body);
+        Get.snackbar('Error', errorData['message'] ?? 'Failed to create profile', backgroundColor: Colors.redAccent, colorText: Colors.white);
+      }
+    } catch (e, stackTrace) {
+      if (Get.isDialogOpen ?? false) Get.back();
+      print('UserProfile Submit Error: $e');
+      print('StackTrace: $stackTrace');
+      Get.snackbar('Error', 'Something went wrong: $e', backgroundColor: Colors.redAccent, colorText: Colors.white);
+    }
   }
 }

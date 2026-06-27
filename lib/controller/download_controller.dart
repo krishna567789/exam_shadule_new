@@ -9,35 +9,37 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
-import 'package:exam_shadule_new/models/download_model/download_model.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
 class DownloadController extends GetxController {
   Database? _database;
-  String centerCode = '';
-  String centerName = '';
-  var selectedShift = ''.obs;
-  var downloadProgress = 0.0.obs;
-  var imageBytes = Rx<Uint8List?>(null);
-  var isDownloading = false.obs;
-  var totalStudents = 0.obs;
-  var shift = ''.obs;
-  var timing = ''.obs;
+  final RxString centerCode = ''.obs;
+  final RxString centerName = ''.obs;
+  final RxString selectedShift = ''.obs;
+  final RxDouble downloadProgress = 0.0.obs;
+  final RxBool isDownloading = false.obs;
+  final RxInt totalStudents = 0.obs;
+  final RxString shift = ''.obs;
+  final RxString timing = ''.obs;
+  final RxString shiftStart = ''.obs;
+  final RxString shiftEnd = ''.obs;
 
   @override
   void onInit() {
     super.onInit();
-    getCode();
-    _initDatabase(); // Ensure database is initialized
+    getStoredSessionData();
+    _initDatabase();
+    countAllStudents();
   }
 
-  Future<void> getCode() async {
+  Future<void> getStoredSessionData() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
-    centerCode = prefs.getString('center_code') ?? "No Code Found";
-    centerName = prefs.getString('center_name') ?? "No Name Found";
-    update();
+    centerCode.value = prefs.getString('center_code') ?? "No Code Found";
+    centerName.value = prefs.getString('center_name') ?? "No Name Found";
+    shiftStart.value = prefs.getString('shift_start_time') ?? "";
+    shiftEnd.value = prefs.getString('shift_end_time') ?? "";
   }
 
-  // Ensure proper initialization of the database
   Future<void> _initDatabase() async {
     final databasePath = await getApplicationDocumentsDirectory();
     final path = join(databasePath.path, 'students_details.db');
@@ -52,101 +54,114 @@ class DownloadController extends GetxController {
       },
       version: 1,
     );
-    print("Database initialized successfully");
   }
 
-  // Function to ensure the database is initialized before operations
   Future<void> ensureDatabaseInitialized() async {
     if (_database == null) {
-      print("Database not initialized. Initializing now...");
       await _initDatabase();
     }
   }
 
   Future<void> countAllStudents() async {
-    await ensureDatabaseInitialized(); // Ensure database is initialized before use
+    var box = Hive.box('candidates_box');
+    if (box.isNotEmpty) {
+      totalStudents.value = box.length;
+      return;
+    }
+
+    await ensureDatabaseInitialized();
     final db = _database;
     final countResult = await db?.rawQuery('SELECT COUNT(*) as total FROM shifts');
     if (countResult != null && countResult.isNotEmpty) {
       totalStudents.value = Sqflite.firstIntValue(countResult) ?? 0;
-      print("Total Students Count: ${totalStudents.value}");
-    } else {
-      totalStudents.value = 0;
-      print("No records found");
-    }
-
-    // Query for shift and timing
-    final details = await db?.rawQuery('SELECT shift, timing FROM shifts LIMIT 1');
-    if (details != null && details.isNotEmpty) {
-      shift.value = details[0]['shift']?.toString() ?? '';
-      timing.value = details[0]['timing']?.toString() ?? '';
-    } else {
-      shift.value = '';
-      timing.value = '';
     }
   }
 
   Future<void> deleteStudentDetails() async {
-    await ensureDatabaseInitialized(); // Ensure database is initialized before use
-    if (_database == null) {
-      print("Database not initialized");
-      return;
+    var box = Hive.box('candidates_box');
+    await box.clear();
+
+    await ensureDatabaseInitialized();
+    if (_database != null) {
+      await _database!.delete("shifts");
     }
-    try {
-      final db = _database;
-      int count = await db!.delete("shifts");
-      print("Deleted $count records from shifts table");
-    } catch (e) {
-      print("Error deleting records: $e");
-    }
+    
+    totalStudents.value = 0;
   }
 
-
-
   Future<void> fetchAndStoreData() async {
-    if (selectedShift.value.isEmpty) {
-      Get.snackbar(
-          "Error", "Please select a shift", backgroundColor: Colors.red);
-      return;
-    }
     try {
       isDownloading.value = true;
       downloadProgress.value = 0.0;
 
-      final response = await http.get(Uri.parse(
-          'https://bio.ubrosoft.com/api/students/shift/Shift ${selectedShift
-              .value}')
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      String? token = prefs.getString('token');
+
+      var response = await http.get(
+        Uri.parse('https://bio.ubroapi.space/api/mobile/download'),
+        headers: {
+          'Authorization': 'Bearer $token',
+        },
       );
-      print("API URL: ${response.request?.url} | Response: ${response.body}");
+
       if (response.statusCode == 200) {
-        List<dynamic> data = jsonDecode(response.body);
-        // await countRecordsWithShiftsAndTimings(selectedShift.value);
-        for (int i = 0; i < data.length; i++) {
-          var studentData = data[i];
-          var photoUrl = studentData['photo'];
-          String imageName = 'student_${studentData['rollno']}';
-          await getBitmapFromNetwork(photoUrl, imageName);
-          await _storeDataLocally([studentData]);
-          downloadProgress.value =
-              (i + 1) / data.length;
+        var responseData = json.decode(response.body);
+        List<dynamic> candidates = [];
+        
+        if (responseData['students'] != null) {
+          candidates = responseData['students'];
+        } else if (responseData['data'] != null) {
+          candidates = responseData['data'];
         }
-        Get.snackbar("Success", "Download Completed Successfully",
-            backgroundColor: Colors.green);
+
+        if (candidates.isEmpty) {
+          Get.snackbar("Info", "No candidates found for this session.");
+          isDownloading.value = false;
+          return;
+        }
+
+        var box = Hive.box('candidates_box');
+        await box.clear();
+
+        for (int i = 0; i < candidates.length; i++) {
+          var student = candidates[i];
+          
+          if (student['photo'] != null && student['photo'].toString().startsWith('http')) {
+            String imageName = 'student_${student['rollNo'] ?? student['id']}';
+            String? localPath = await getBitmapFromNetwork(student['photo'], imageName);
+            if (localPath != null) {
+              student['localPhotoPath'] = localPath;
+            }
+          }
+
+          if (student['thumbnail'] != null && student['thumbnail'].toString().startsWith('http')) {
+            String thumbName = 'thumb_${student['rollNo'] ?? student['id']}';
+            String? localThumb = await getBitmapFromNetwork(student['thumbnail'], thumbName);
+            if (localThumb != null) {
+              student['localThumbPath'] = localThumb;
+            }
+          }
+          
+          await box.add(student);
+          downloadProgress.value = (i + 1) / candidates.length;
+        }
+
+        totalStudents.value = box.length;
+        Get.snackbar("Success", "Successfully downloaded ${box.length} candidates.",
+            backgroundColor: Colors.greenAccent);
       } else {
-        Get.snackbar("Error",
-            "Failed to fetch data. Status Code: ${response.statusCode}",
-            backgroundColor: Colors.red);
+        Get.snackbar("Error", "Failed to download data: ${response.reasonPhrase}",
+            backgroundColor: Colors.redAccent, colorText: Colors.white);
       }
     } catch (e) {
-      Get.snackbar("Error", "An error occurred while downloading data",
-          backgroundColor: Colors.red);
-      print('Error: $e');
+      print("Download Error: $e");
+      Get.snackbar("Error", "An error occurred: $e",
+          backgroundColor: Colors.redAccent, colorText: Colors.white);
     } finally {
       isDownloading.value = false;
     }
   }
 
-// Function to download, decode, and save an image locally
   Future<String?> getBitmapFromNetwork(String imageUrl, String imageName) async {
     try {
       final response = await http.get(Uri.parse(imageUrl));
@@ -155,40 +170,15 @@ class DownloadController extends GetxController {
         if (image != null) {
           final bytes = Uint8List.fromList(img.encodePng(image));
           final directory = await getApplicationDocumentsDirectory();
-          final filePath = '${directory.path}/$imageName.png'; // Use unique name for each image
+          final filePath = '${directory.path}/$imageName.png';
           final file = File(filePath);
           await file.writeAsBytes(bytes);
-          print("Image saved successfully at $filePath");
           return filePath;
         }
       }
     } catch (e) {
-      print("Error: $e");
+      print("Error downloading image: $e");
     }
     return null;
   }
-
-  Future<void> _storeDataLocally(List<dynamic> data) async {
-    final db = _database;
-    if (db == null) return;
-
-    for (int i = 0; i < data.length; i++) {
-      var studentData = data[i];
-      var photoUrl = studentData['photo'];
-      String imageName = 'student_${studentData['rollno']}';
-      String? imagePath = await getBitmapFromNetwork(photoUrl, imageName);
-      if (imagePath != null) {
-        studentData['photo'] = imagePath;
-      }
-      await db.insert(
-        'shifts',
-        StudentDetailsModel.fromJson(studentData).toJson(),
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
-    }
-    await countAllStudents();  // Ensure this is called after all inserts are complete
-  }
-
-
 }
-

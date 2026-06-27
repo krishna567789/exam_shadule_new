@@ -1,5 +1,11 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:get/get.dart';
+import '../controller/download_controller.dart';
+import '../controller/login_controller.dart';
 import '../models/candidate.dart';
 import 'enrollment_screen.dart';
 
@@ -11,21 +17,23 @@ class CandidatesScreen extends StatefulWidget {
 }
 
 class _CandidatesScreenState extends State<CandidatesScreen> {
-  final List<Candidate> _allCandidates = [
-    Candidate(id: '1', name: 'Aarav Sharma', rollNo: '2025-EX-8821', status: CandidateStatus.absent),
-    Candidate(id: '2', name: 'Mock Candidate 1', rollNo: '2025-EX-9000', status: CandidateStatus.absent),
-    Candidate(id: '3', name: 'Mock Candidate 10', rollNo: '2025-EX-9009', status: CandidateStatus.absent),
-    Candidate(id: '4', name: 'Mock Candidate 100', rollNo: '2025-EX-9099', status: CandidateStatus.absent),
-  ];
-
-  List<Candidate> _filteredCandidates = [];
+  final DownloadController _downloadController = Get.find<DownloadController>();
+  final LoginController _loginController = Get.find<LoginController>();
+  
   final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = "";
+  String _statusFilter = "All"; // "All", "Present", "Absent"
 
   @override
   void initState() {
     super.initState();
-    _filteredCandidates = _allCandidates;
-    _searchController.addListener(_onSearchChanged);
+    _searchController.addListener(() {
+      if (mounted) {
+        setState(() {
+          _searchQuery = _searchController.text.toLowerCase();
+        });
+      }
+    });
   }
 
   @override
@@ -34,16 +42,30 @@ class _CandidatesScreenState extends State<CandidatesScreen> {
     super.dispose();
   }
 
-  void _onSearchChanged() {
-    final query = _searchController.text.toLowerCase();
-    setState(() {
-      _filteredCandidates = _allCandidates.where((c) {
-        return c.name.toLowerCase().contains(query) || c.rollNo.toLowerCase().contains(query);
-      }).toList();
-    });
-  }
+  void _navigateToEnrollment(Map<String, dynamic> studentData) {
+    if (studentData['attendanceStatus'] == true) {
+      _showRegisteredDetails(studentData);
+      return;
+    }
 
-  void _navigateToEnrollment(Candidate candidate) {
+    final candidate = Candidate(
+      id: (studentData['id'] ?? studentData['_id'] ?? '').toString(),
+      name: (studentData['name'] ?? 'N/A').toString(),
+      rollNo: (studentData['rollNo'] ?? studentData['rollno'] ?? 'N/A').toString(),
+      fatherName: studentData['fatherName']?.toString(),
+      motherName: studentData['motherName']?.toString(),
+      email: studentData['email']?.toString(),
+      mobile: studentData['mobile']?.toString(),
+      address: studentData['address']?.toString(),
+      photo: studentData['photo']?.toString(),
+      thumbnail: studentData['thumbnail']?.toString(),
+      localPhotoPath: studentData['localPhotoPath']?.toString(),
+      localThumbPath: studentData['localThumbPath']?.toString(),
+      status: (studentData['attendanceStatus'] == true) 
+          ? CandidateStatus.present 
+          : CandidateStatus.absent,
+    );
+
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -52,241 +74,517 @@ class _CandidatesScreenState extends State<CandidatesScreen> {
     );
   }
 
+  void _showRegisteredDetails(Map<String, dynamic> student) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        backgroundColor: Theme.of(context).cardTheme.color,
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                "REGISTERED DETAILS",
+                style: GoogleFonts.outfit(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  color: const Color(0xFF1976D2),
+                  letterSpacing: 1.2,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.green, width: 2),
+                ),
+                child: ClipOval(
+                  child: (student['livePhotoBase64'] != null && student['livePhotoBase64'].toString().length > 10)
+                      ? Image.memory(
+                          base64Decode(student['livePhotoBase64'].toString().split(',').last),
+                          fit: BoxFit.cover,
+                          errorBuilder: (c, e, s) => const Icon(Icons.broken_image, size: 50),
+                        )
+                      : Container(color: Colors.grey.withOpacity(0.1), child: const Icon(Icons.person, size: 50, color: Colors.grey)),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                student['name']?.toString() ?? "N/A",
+                style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: Theme.of(context).textTheme.bodyLarge?.color),
+              ),
+              Text(
+                "Roll No: ${student['rollNo'] ?? student['rollno'] ?? 'N/A'}",
+                style: GoogleFonts.outfit(fontSize: 14, color: Colors.grey),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _buildThumbPreview("Left Thumb", student['leftThumbBase64']),
+                  _buildThumbPreview("Right Thumb", student['rightThumbBase64']),
+                ],
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                      ),
+                      child: Text("CLOSE", style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange,
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                      ),
+                      onPressed: () {
+                        Navigator.pop(context);
+                        // Force navigate to re-capture
+                        final candidate = Candidate(
+                          id: (student['id'] ?? student['_id'] ?? '').toString(),
+                          name: (student['name'] ?? 'N/A').toString(),
+                          rollNo: (student['rollNo'] ?? student['rollno'] ?? 'N/A').toString(),
+                          status: CandidateStatus.present,
+                        );
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => BiometricEnrollmentScreen(candidate: candidate),
+                          ),
+                        );
+                      },
+                      child: Text("RE-CAPTURE", style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildThumbPreview(String label, dynamic base64Data) {
+    return Column(
+      children: [
+        Text(label, style: GoogleFonts.outfit(fontSize: 10, color: Colors.grey)),
+        const SizedBox(height: 4),
+        Container(
+          width: 60,
+          height: 60,
+          decoration: BoxDecoration(
+            color: Colors.grey.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.grey.shade300),
+          ),
+          child: (base64Data != null && base64Data.toString().length > 10)
+              ? ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.memory(
+                    base64Decode(base64Data.toString().split(',').last),
+                    fit: BoxFit.cover,
+                    errorBuilder: (c, e, s) => const Icon(Icons.broken_image, color: Colors.red, size: 24),
+                  ),
+                )
+              : const Icon(Icons.fingerprint, color: Colors.grey),
+        ),
+      ],
+    );
+  }
+
+  void _showLogoutDialog() {
+    Get.dialog(
+      Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.logout, color: Colors.red, size: 48),
+              const SizedBox(height: 16),
+              Text(
+                "Confirm Logout",
+                style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                "Are you sure you want to log out? Local unsynced data may be cleared.",
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Get.back(),
+                      child: const Text("CANCEL"),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                      onPressed: () {
+                        Get.back();
+                        _loginController.logout();
+                      },
+                      child: const Text("LOGOUT", style: TextStyle(color: Colors.white)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     const Color cyberBlue = Color(0xFF2196F3);
-    const Color cyberCyan = Color(0xFF64B5F6);
-    const Color textMuted = Color(0xFF90A4AE);
+    final Color textMuted = Theme.of(context).brightness == Brightness.light 
+        ? const Color(0xFF64748B) 
+        : Colors.white70;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF03081A),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
-            child: Column(
-              children: [
-                // Header Section
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                  decoration: BoxDecoration(
-                    border: Border(
-                      bottom: BorderSide(
-                        color: const Color(0xFF1A3D75).withOpacity(0.3),
-                        width: 1.5,
-                      ),
-                    ),
-                    color: const Color(0xFF0A1329).withOpacity(0.5),
+        child: Column(
+          children: [
+            // Header Section
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(
+                    color: Theme.of(context).dividerColor.withOpacity(0.1),
+                    width: 1.0,
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                ),
+                color: Theme.of(context).cardTheme.color?.withOpacity(0.5),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            children: [
-                              const Icon(Icons.location_on, color: cyberCyan, size: 14),
-                              const SizedBox(width: 6),
-                              Text(
-                                'CNTR-104',
+                      Expanded(
+                        child: Row(
+                          children: [
+                            const Icon(Icons.location_on, color: Color(0xFF1976D2), size: 14),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Obx(() => Text(
+                                _downloadController.centerCode.value.isNotEmpty 
+                                    ? _downloadController.centerCode.value 
+                                    : 'N/A',
                                 style: GoogleFonts.outfit(
                                   color: textMuted,
                                   fontSize: 12,
                                   letterSpacing: 1.0,
                                 ),
-                              ),
-                            ],
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.logout, color: cyberCyan, size: 20),
-                            onPressed: () {
-                              Navigator.of(context).popUntil((route) => route.isFirst);
-                            },
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Govt. Polytechnic College, Zone 4',
-                        style: GoogleFonts.outfit(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.1,
+                                overflow: TextOverflow.ellipsis,
+                              )),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 12),
-                      Container(
+                      IconButton(
+                        icon: const Icon(Icons.logout, color: Color(0xFF1976D2), size: 20),
+                        onPressed: () {
+                          _showLogoutDialog();
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Obx(() => Text(
+                    _downloadController.centerName.value.isNotEmpty 
+                        ? _downloadController.centerName.value 
+                        : 'No Center Assigned',
+                    style: GoogleFonts.outfit(
+                      color: Theme.of(context).textTheme.titleLarge?.color,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.1,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  )),
+                  const SizedBox(height: 12),
+                  ValueListenableBuilder(
+                    valueListenable: Hive.box('candidates_box').listenable(),
+                    builder: (context, Box box, _) {
+                      int total = box.length;
+                      int present = box.values.where((s) => (s as Map)['attendanceStatus'] == true).length;
+                      
+                      return Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF0D254F).withOpacity(0.5),
+                          color: Theme.of(context).primaryColor.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
-                            color: const Color(0xFF154385).withOpacity(0.4),
+                            color: Theme.of(context).dividerColor.withOpacity(0.1),
                           ),
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Row(
-                              children: [
-                                const Icon(Icons.access_time, color: cyberCyan, size: 14),
-                                const SizedBox(width: 6),
-                                Text(
-                                  'Morning (Shift 1)',
-                                  style: GoogleFonts.outfit(
-                                    color: Colors.white,
-                                    fontSize: 12,
+                            Expanded(
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.access_time, color: Color(0xFF1976D2), size: 14),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Obx(() => Text(
+                                      _downloadController.shift.value.isNotEmpty
+                                          ? _downloadController.shift.value
+                                          : 'Current Session',
+                                      style: GoogleFonts.outfit(
+                                        color: Theme.of(context).textTheme.bodyMedium?.color,
+                                        fontSize: 12,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    )),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                             Text(
-                              '2 / 150 Present',
+                              '$present / $total Present',
                               style: GoogleFonts.outfit(
-                                color: cyberCyan,
+                                color: const Color(0xFF1976D2),
                                 fontSize: 12,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
                           ],
                         ),
-                      ),
-                    ],
+                      );
+                    }
+                  ),
+                ],
+              ),
+            ),
+
+            // Search Bar
+            Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Theme.of(context).cardTheme.color,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                    color: Theme.of(context).dividerColor.withOpacity(0.1),
+                    width: 1.0,
                   ),
                 ),
-
-                // Search Bar
-                Padding(
-                  padding: const EdgeInsets.all(20.0),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(
-                        color: const Color(0xFF154385).withOpacity(0.4),
-                        width: 1.0,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).primaryColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Icon(
+                        Icons.search,
+                        color: Color(0xFF1976D2),
+                        size: 18,
                       ),
                     ),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 36,
-                          height: 36,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFE3F2FD),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: const Icon(
-                            Icons.search,
-                            color: Color(0xFF1976D2),
-                            size: 18,
-                          ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextField(
+                        controller: _searchController,
+                        style: GoogleFonts.outfit(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: Theme.of(context).textTheme.bodyLarge?.color,
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: TextField(
-                            controller: _searchController,
-                            style: GoogleFonts.outfit(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              color: const Color(0xFF1C2D42),
-                            ),
-                            decoration: const InputDecoration(
-                              hintText: 'Scan Barcode or Search roll no...',
-                              hintStyle: TextStyle(
-                                color: Color(0xFF78909C),
-                                fontSize: 14,
-                              ),
-                              border: InputBorder.none,
-                              enabledBorder: InputBorder.none,
-                              focusedBorder: InputBorder.none,
-                              contentPadding: EdgeInsets.zero,
-                              isDense: true,
-                            ),
+                        decoration: InputDecoration(
+                          hintText: 'Search by name or roll no...',
+                          hintStyle: TextStyle(
+                            color: textMuted.withOpacity(0.5),
+                            fontSize: 14,
+                          ),
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          contentPadding: EdgeInsets.zero,
+                          isDense: true,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // Candidates List Header
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'CANDIDATES',
+                    style: GoogleFonts.outfit(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).textTheme.titleSmall?.color,
+                      letterSpacing: 1.1,
+                    ),
+                  ),
+                  PopupMenuButton<String>(
+                    onSelected: (value) {
+                      setState(() {
+                        _statusFilter = value;
+                      });
+                    },
+                    icon: Row(
+                      children: [
+                        Icon(Icons.filter_list, size: 16, color: Theme.of(context).primaryColor),
+                        const SizedBox(width: 4),
+                        Text(
+                          _statusFilter,
+                          style: GoogleFonts.outfit(
+                            color: textMuted,
+                            fontSize: 12,
                           ),
                         ),
                       ],
                     ),
+                    itemBuilder: (context) => [
+                      const PopupMenuItem(value: "All", child: Text("All")),
+                      const PopupMenuItem(value: "Present", child: Text("Present")),
+                      const PopupMenuItem(value: "Absent", child: Text("Absent")),
+                    ],
                   ),
-                ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
 
-                // Candidates List Header
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'CANDIDATES',
-                        style: GoogleFonts.outfit(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                          letterSpacing: 1.1,
-                        ),
-                      ),
-                      Row(
+            // Dynamic Candidates List from Hive
+            Expanded(
+              child: ValueListenableBuilder(
+                valueListenable: Hive.box('candidates_box').listenable(),
+                builder: (context, Box box, _) {
+                  if (box.isEmpty) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.sort, size: 14, color: textMuted),
-                          const SizedBox(width: 4),
+                          Icon(Icons.people_outline, size: 64, color: textMuted.withOpacity(0.3)),
+                          const SizedBox(height: 16),
                           Text(
-                            'Name (A-Z)',
-                            style: GoogleFonts.outfit(
-                              color: textMuted,
-                              fontSize: 12,
-                            ),
+                            "No candidates found",
+                            style: GoogleFonts.outfit(color: textMuted),
                           ),
                         ],
                       ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 8),
+                    );
+                  }
 
-                // Candidates List
-                Expanded(
-                  child: ListView.builder(
+                  final List<Map<String, dynamic>> allStudents = box.values
+                      .map((e) => Map<String, dynamic>.from(e as Map))
+                      .toList();
+
+                  final filteredStudents = allStudents.where((student) {
+                    final name = (student['name'] ?? "").toString().toLowerCase();
+                    final rollNo = (student['rollNo'] ?? student['rollno'] ?? "").toString().toLowerCase();
+                    final matchesSearch = name.contains(_searchQuery) || rollNo.contains(_searchQuery);
+                    
+                    bool matchesStatus = true;
+                    if (_statusFilter == "Present") {
+                      matchesStatus = student['attendanceStatus'] == true;
+                    } else if (_statusFilter == "Absent") {
+                      matchesStatus = student['attendanceStatus'] != true;
+                    }
+                    
+                    return matchesSearch && matchesStatus;
+                  }).toList();
+
+                  if (filteredStudents.isEmpty) {
+                    return Center(
+                      child: Text("No candidates match your filters",
+                        style: GoogleFonts.outfit(color: textMuted)),
+                    );
+                  }
+
+                  return ListView.builder(
                     padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8),
-                    itemCount: _filteredCandidates.length,
+                    itemCount: filteredStudents.length,
                     itemBuilder: (context, index) {
-                      final candidate = _filteredCandidates[index];
-                      final bool isAbsent = candidate.status == CandidateStatus.absent;
+                      final student = filteredStudents[index];
+                      final bool isPresent = student['attendanceStatus'] == true;
+                      
+                      Widget leadingWidget;
+                      String? localPath = (student['localThumbPath'] ?? student['localPhotoPath'])?.toString();
+                      String? networkUrl = (student['thumbnail'] ?? student['photo'])?.toString();
+                      
+                      if (localPath != null && File(localPath).existsSync()) {
+                         leadingWidget = Image.file(File(localPath), fit: BoxFit.cover);
+                      } else if (networkUrl != null && networkUrl.startsWith('http')) {
+                         leadingWidget = Image.network(
+                           networkUrl, 
+                           fit: BoxFit.cover,
+                           errorBuilder: (context, error, stackTrace) => _buildInitialsWidget(student),
+                           loadingBuilder: (context, child, loadingProgress) {
+                             if (loadingProgress == null) return child;
+                             return Center(child: CircularProgressIndicator(
+                               strokeWidth: 2, 
+                               value: loadingProgress.expectedTotalBytes != null 
+                                 ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes! 
+                                 : null,
+                             ));
+                           },
+                         );
+                      } else {
+                         leadingWidget = _buildInitialsWidget(student);
+                      }
 
                       return GestureDetector(
-                        onTap: () => _navigateToEnrollment(candidate),
+                        onTap: () => _navigateToEnrollment(student),
                         child: Container(
                           margin: const EdgeInsets.only(bottom: 14),
                           child: _buildHudCard(
-                            showTopLeft: true,
-                            showBottomRight: true,
+                            context: context,
                             child: Row(
                               children: [
                                 Container(
-                                  width: 44,
-                                  height: 44,
+                                  width: 52,
+                                  height: 52,
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
                                     border: Border.all(
-                                      color: cyberBlue,
+                                      color: cyberBlue.withOpacity(0.5),
                                       width: 1.5,
                                     ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: cyberBlue.withOpacity(0.2),
-                                        blurRadius: 6,
-                                      ),
-                                    ],
                                   ),
-                                  child: CircleAvatar(
-                                    backgroundColor: const Color(0xFF0D254F),
-                                    radius: 20,
-                                    child: Text(
-                                      candidate.name.substring(0, 2).toUpperCase(),
-                                      style: GoogleFonts.outfit(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 14,
-                                      ),
+                                  child: ClipOval(
+                                    child: Container(
+                                      color: const Color(0xFFE3F2FD),
+                                      child: leadingWidget,
                                     ),
                                   ),
                                 ),
@@ -296,20 +594,22 @@ class _CandidatesScreenState extends State<CandidatesScreen> {
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        candidate.name,
+                                        student['name']?.toString() ?? 'N/A',
                                         style: GoogleFonts.outfit(
                                           fontWeight: FontWeight.bold,
-                                          color: Colors.white,
+                                          color: Theme.of(context).textTheme.bodyLarge?.color,
                                           fontSize: 15,
                                         ),
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                       const SizedBox(height: 4),
                                       Text(
-                                        candidate.rollNo,
+                                        "Roll: ${student['rollNo'] ?? student['rollno'] ?? 'N/A'}",
                                         style: GoogleFonts.outfit(
                                           color: textMuted,
                                           fontSize: 12,
                                         ),
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ],
                                   ),
@@ -317,20 +617,20 @@ class _CandidatesScreenState extends State<CandidatesScreen> {
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                   decoration: BoxDecoration(
-                                    color: isAbsent
+                                    color: !isPresent
                                         ? const Color(0xFFEF4444).withOpacity(0.1)
                                         : const Color(0xFF10B981).withOpacity(0.1),
                                     borderRadius: BorderRadius.circular(4),
                                     border: Border.all(
-                                      color: isAbsent
+                                      color: !isPresent
                                           ? const Color(0xFFEF4444).withOpacity(0.4)
                                           : const Color(0xFF10B981).withOpacity(0.4),
                                     ),
                                   ),
                                   child: Text(
-                                    isAbsent ? 'ABSENT' : 'PRESENT',
+                                    !isPresent ? 'ABSENT' : 'PRESENT',
                                     style: GoogleFonts.outfit(
-                                      color: isAbsent
+                                      color: !isPresent
                                           ? const Color(0xFFEF4444)
                                           : const Color(0xFF10B981),
                                       fontSize: 10,
@@ -345,30 +645,43 @@ class _CandidatesScreenState extends State<CandidatesScreen> {
                         ),
                       );
                     },
-                  ),
-                ),
-              ],
+                  );
+                }
+              ),
             ),
-          ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInitialsWidget(Map<String, dynamic> student) {
+    String name = (student['name'] ?? "NA").toString();
+    String initials = name.length >= 2 ? name.substring(0, 2).toUpperCase() : name.toUpperCase();
+    return Center(
+      child: Text(
+        initials,
+        style: GoogleFonts.outfit(
+          color: const Color(0xFF1976D2),
+          fontWeight: FontWeight.bold,
+          fontSize: 16,
+        ),
+      ),
     );
   }
 
   Widget _buildHudCard({
+    required BuildContext context,
     required Widget child,
-    bool showTopLeft = true,
-    bool showTopRight = true,
-    bool showBottomLeft = true,
-    bool showBottomRight = true,
   }) {
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.all(2.0),
       decoration: BoxDecoration(
-        color: const Color(0xFF0A1329).withOpacity(0.8),
+        color: Theme.of(context).cardTheme.color,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: const Color(0xFF1A3D75).withOpacity(0.4),
-          width: 1.5,
+          color: Theme.of(context).dividerColor.withOpacity(0.1),
+          width: 1.0,
         ),
       ),
       padding: const EdgeInsets.all(12),
@@ -376,4 +689,3 @@ class _CandidatesScreenState extends State<CandidatesScreen> {
     );
   }
 }
-

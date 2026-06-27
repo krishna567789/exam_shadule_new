@@ -29,23 +29,23 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF03081A),
+      backgroundColor: Colors.white,
       body: _screens[_selectedIndex],
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           border: Border(
             top: BorderSide(
-              color: const Color(0xFF1A3D75).withOpacity(0.4),
-              width: 1.5,
+              color: Colors.grey.shade300,
+              width: 1.0,
             ),
           ),
         ),
         child: BottomNavigationBar(
           currentIndex: _selectedIndex,
           onTap: _onItemTapped,
-          backgroundColor: const Color(0xFF0A1329),
+          backgroundColor: Colors.white,
           selectedItemColor: const Color(0xFF2196F3),
-          unselectedItemColor: const Color(0xFF90A4AE),
+          unselectedItemColor: Colors.grey.shade500,
           selectedLabelStyle: GoogleFonts.outfit(
             fontWeight: FontWeight.bold,
             letterSpacing: 0.8,

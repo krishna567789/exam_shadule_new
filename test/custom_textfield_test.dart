@@ -17,10 +17,8 @@ void main() {
       ),
     );
 
-    // Verify label is displayed in uppercase
     expect(find.text('USERNAME'), findsOneWidget);
 
-    // Enter text and verify controller is updated
     await tester.enterText(find.byType(TextField), 'john_doe');
     expect(controller.text, 'john_doe');
   });
@@ -36,8 +34,6 @@ void main() {
         ),
       ),
     );
-
-    // Find the TextField and verify it has obscureText set to true
     final textField = tester.widget<TextField>(find.byType(TextField));
     expect(textField.obscureText, isTrue);
   });

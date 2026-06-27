@@ -7,3 +7,7 @@
 -dontwarn com.google.mlkit.vision.text.japanese.JapaneseTextRecognizerOptions
 -dontwarn com.google.mlkit.vision.text.korean.KoreanTextRecognizerOptions$Builder
 -dontwarn com.google.mlkit.vision.text.korean.KoreanTextRecognizerOptions
+
+# Alcorlink Camera classes used by SecuGen SDK
+-dontwarn com.alcorlink.camera.**
+

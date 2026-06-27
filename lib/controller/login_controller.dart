@@ -1,121 +1,179 @@
 import 'package:exam_shadule_new/screens/operator_profile_screen.dart';
+import 'package:exam_shadule_new/screens/session_setup_screen.dart';
+import 'package:exam_shadule_new/screens/login_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
 class LoginController extends GetxController {
   login({required String email, required String password}) async {
     try {
-      // Show loading indicator
       Get.dialog(
-        Center(child: CircularProgressIndicator(color: Color(0xff6388bd))),
-        barrierDismissible: false, // Prevent closing dialog by tapping outside
+        const Center(child: CircularProgressIndicator(color: Color(0xff6388bd))),
+        barrierDismissible: false,
       );
 
-      var headers = {
+      // 1. Login API
+      String loginUrl = "https://bio.ubroapi.space/api/registrars/login";
+      var loginHeaders = {
         'Accept': 'application/json',
-        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhM2QxNmM5MGUyZjBiMzMwNjM2MDk2MCIsInJvbGUiOiJvcGVyYXRvciIsImF1dGhTb3VyY2UiOiJyZWdpc3RyYXJzIiwiaWF0IjoxNzgyNDQzOTA2LCJleHAiOjE3ODI1MzAzMDZ9.UtEuew3WcYlJiemTFEs1vNJRDUDHrlnP64DrR4VDcYY',
+      };
+      var loginBody = {
+        "email": email,
+        "password": password,
       };
 
-      print(email);
-      print(password);
-      final response = await http.post(
-        Uri.parse("https://bio.ubrosoft.com/api/user/login"),
-        headers: headers,
-        body: {"email": email, "password": password},
+      print("--- LOGIN REQUEST ---");
+      print("URL: $loginUrl");
+      print("Headers: $loginHeaders");
+      print("Body: ${json.encode(loginBody)}");
+
+      final loginResponse = await http.post(
+        Uri.parse(loginUrl),
+        headers: loginHeaders,
+        body: json.encode(loginBody),
       );
-      print("API URL: ${response.request?.url} | Response: ${response.body}");
 
-      // Close the loading dialog
-      Get.back();
+      print("--- LOGIN RESPONSE ---");
+      print("Status Code: ${loginResponse.statusCode}");
+      print("Response Body: ${loginResponse.body}");
+      print("----------------------");
 
-      // Check if the response status code is 200 (Success)
-      if (response.statusCode == 200) {
-        var responseData = json.decode(response.body);
+      if (Get.isDialogOpen ?? false) Get.back();
+
+      var loginData = json.decode(loginResponse.body);
+
+      if (loginResponse.statusCode == 200 && loginData['status'] == true) {
         SharedPreferences prefs = await SharedPreferences.getInstance();
 
-        String? centerCode;
-        String? centerName;
+        // Save Auth Token
+        String token = loginData['token'] ?? "";
+        await prefs.setString('token', token);
+        await prefs.setString('operator_email', email);
+        await prefs.setBool('is_logged_in', true);
+        
+        print("--- SAVED BEARER TOKEN ---");
+        print("Token: $token");
+        print("--------------------------");
 
-        if (responseData['center_code'] != null) {
-          centerCode = responseData['center_code'].toString();
-        } else if (responseData['user'] != null && responseData['user']['center_code'] != null) {
-          centerCode = responseData['user']['center_code'].toString();
+        // Save session data from login response
+        var data = loginData['data'];
+        if (data != null) {
+          await prefs.setString('center_name', data['center_name'] ?? "");
+          await prefs.setString('center_code', data['center_code'] ?? "");
+          await prefs.setString('exam_name', data['exam_name'] ?? "");
+          await prefs.setString('shift_start_time', data['shift_start_time'] ?? "");
+          await prefs.setString('shift_end_time', data['shift_end_time'] ?? "");
         }
 
-        if (responseData['center_name'] != null) {
-          centerName = responseData['center_name'].toString();
-        } else if (responseData['user'] != null && responseData['user']['center_name'] != null) {
-          centerName = responseData['user']['center_name'].toString();
-        }
+        // 2. Check Profile API
+        await checkProfileStatus(email, token);
 
-        if (centerCode != null) await prefs.setString('center_code', centerCode);
-        if (centerName != null) await prefs.setString('center_name', centerName);
-
-        if (responseData['user'] != null) {
-          var userObj = responseData['user'];
-          if (userObj['name'] != null) {
-            await prefs.setString('operator_name', userObj['name'].toString());
-          }
-          if (userObj['email'] != null) {
-            await prefs.setString('operator_email', userObj['email'].toString());
-          }
-          if (userObj['mobile_number'] != null) {
-            await prefs.setString('operator_phone', userObj['mobile_number'].toString());
-          } else if (userObj['phone'] != null) {
-            await prefs.setString('operator_phone', userObj['phone'].toString());
-          }
-
-          String? city = userObj['city']?.toString();
-          String? state = userObj['state']?.toString();
-          if (city != null && state != null) {
-            await prefs.setString('operator_city_state', "$city, $state");
-          } else if (city != null) {
-            await prefs.setString('operator_city_state', city);
-          } else if (state != null) {
-            await prefs.setString('operator_city_state', state);
-          }
-        }
-
-        Get.snackbar(
-          "Success",
-          "Login Successful",
-          backgroundColor: Colors.greenAccent,
-        );
-        Get.offAll(() => const OperatorProfileScreen());
-        print("Login Successful");
       } else {
-        // If the response status code is not 200, check the response body
-        var responseData = json.decode(response.body);
-        if (responseData['message'] != null) {
-          // If a specific message is returned, display it
-          Get.snackbar(
-            "Failed",
-            responseData['message'],
-            backgroundColor: Colors.redAccent,
-          );
-        } else {
-          // If no specific message, display a generic error
-          Get.snackbar(
-            "Failed",
-            "An error occurred. Please try again.",
-            backgroundColor: Colors.redAccent,
-          );
-        }
-        print("Login Failed: ${responseData['message'] ?? 'Unknown error'}");
+        print("Login Failed Status: ${loginResponse.statusCode}");
+        print("Login Failed Body: ${loginResponse.body}");
+        Get.snackbar(
+          "Login Failed",
+          loginData['message'] ?? "Invalid credentials",
+          backgroundColor: Colors.redAccent,
+          colorText: Colors.white,
+          snackPosition: SnackPosition.BOTTOM,
+        );
       }
-    } catch (error) {
-      // Close the loading dialog
-      Get.back();
+    } catch (error, stackTrace) {
+      print("Login Exception: $error");
+      print("Login StackTrace: $stackTrace");
+      if (Get.isDialogOpen ?? false) Get.back();
+      Get.snackbar("Error", "Server connection failed: $error", backgroundColor: Colors.redAccent);
+    }
+  }
 
-      Get.snackbar(
-        "Failed",
-        "Login Failed: $error",
-        backgroundColor: Colors.redAccent,
+  Future<void> checkProfileStatus(String email, String token) async {
+    try {
+      String checkUrl = "https://bio.ubroapi.space/api/operator-users/profile/check?email=$email";
+      var checkHeaders = {
+        'Authorization': 'Bearer $token',
+      };
+
+      print("--- PROFILE CHECK REQUEST ---");
+      print("URL: $checkUrl");
+      print("Headers: $checkHeaders");
+
+      final response = await http.get(
+        Uri.parse(checkUrl),
+        headers: checkHeaders,
       );
-      print(error);
+
+      print("--- PROFILE CHECK RESPONSE ---");
+      print("Status Code: ${response.statusCode}");
+      print("Response Body: ${response.body}");
+      print("------------------------------");
+
+      if (response.statusCode == 200) {
+        var responseData = json.decode(response.body);
+        var data = responseData['data'];
+        bool profileCompleted = data['profileCompleted'] ?? false;
+
+        SharedPreferences prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('is_profile_completed', profileCompleted);
+
+        if (profileCompleted) {
+          // OLD USER: Save profile data and navigate to next screen
+          var profile = data['profile'];
+          if (profile != null) {
+            await prefs.setString('operator_id_db', profile['id'] ?? "");
+            await prefs.setString('operator_name', profile['name'] ?? "");
+            await prefs.setString('father_name', profile['fatherName'] ?? "");
+            await prefs.setString('operator_phone', profile['mobileNumber'] ?? "");
+            await prefs.setString('operator_city_state', "${profile['city']}, ${profile['state']}");
+            await prefs.setString('center_name', profile['centerName'] ?? "");
+            await prefs.setString('center_code', profile['centerCode'] ?? "");
+          }
+
+          Get.snackbar("Welcome", "Login successful", backgroundColor: Colors.greenAccent);
+          Get.offAll(() => const SessionSetupScreen());
+        } else {
+          // NEW USER: Go to Create Profile screen
+          Get.snackbar("Profile Required", "Please complete your profile details", backgroundColor: Colors.orangeAccent);
+          Get.offAll(() => const OperatorProfileScreen());
+        }
+      } else {
+        print("Profile Check Failed Status: ${response.statusCode}");
+        print("Profile Check Failed Body: ${response.body}");
+        // If profile check fails, default to profile screen for safety
+        Get.offAll(() => const OperatorProfileScreen());
+      }
+    } catch (e, stackTrace) {
+      print("Error checking profile: $e");
+      print("StackTrace: $stackTrace");
+      Get.offAll(() => const OperatorProfileScreen());
+    }
+  }
+
+  Future<void> logout() async {
+    try {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      await prefs.clear();
+      
+      // Also clear Hive data to ensure no sensitive info remains
+      var box = Hive.box('candidates_box');
+      await box.clear();
+
+      Get.offAll(() => const LoginScreen());
+      
+      Get.snackbar(
+        "Logged Out",
+        "Session terminated successfully.",
+        backgroundColor: Colors.blueAccent,
+        colorText: Colors.white,
+      );
+    } catch (e) {
+      print("Logout Error: $e");
     }
   }
 }

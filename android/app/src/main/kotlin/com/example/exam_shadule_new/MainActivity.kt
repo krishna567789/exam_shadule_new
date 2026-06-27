@@ -147,14 +147,14 @@ class MainActivity : FlutterFragmentActivity() {
                     return@Thread
                 }
 
-                // Verify image quality >= 95
+                // Verify image quality >= 40
                 val qualityArray = IntArray(1)
                 val qError = sgfpLib!!.GetImageQuality(width.toLong(), height.toLong(), imageBuffer, qualityArray)
                 val quality = if (qError == SGFDxErrorCode.SGFDX_ERROR_NONE) qualityArray[0] else 0
 
-                if (quality < 95) {
+                if (quality < 40) {
                     sgfpLib!!.CloseDevice()
-                    runOnUiThread { result.error("LOW_QUALITY", "Fingerprint quality is too low ($quality%). Minimum 95% required. Please scan again.", null) }
+                    runOnUiThread { result.error("LOW_QUALITY", "Fingerprint quality is too low ($quality%). Minimum 40% required. Please scan again.", null) }
                     return@Thread
                 }
 

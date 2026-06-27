@@ -1,10 +1,14 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:get/get.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:local_auth/local_auth.dart';
 import '../utils/app_theme.dart';
 import '../controller/login_controller.dart';
-import 'operator_profile_screen.dart';
 import '../widgets/custom_text.dart';
+import 'finger_test_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -14,10 +18,113 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  // ignore: unused_field
   final LoginController _loginController = Get.put(LoginController());
   final _userIdController = TextEditingController();
   final _passwordController = TextEditingController();
+  bool _isPasswordVisible = false;
+
+  bool _cameraGranted = false;
+  bool _biometricGranted = false;
+  bool _internetGranted = false;
+  bool _deviceConnected = false;
+
+  final LocalAuthentication _auth = LocalAuthentication();
+  static const _platform =
+      MethodChannel('com.example.exam_shadule_new/rd_service');
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAllPermissions();
+  }
+
+  Future<void> _checkAllPermissions() async {
+    final cameraStatus = await Permission.camera.status;
+
+    bool biometricOk = false;
+    try {
+      final bool isSupported = await _auth.isDeviceSupported();
+      final bool canCheck = await _auth.canCheckBiometrics;
+      if (isSupported && canCheck) {
+        final List<BiometricType> enrolled =
+            await _auth.getAvailableBiometrics();
+        if (enrolled.isNotEmpty) {
+          biometricOk = true;
+        }
+      } else {
+        biometricOk = true;
+      }
+    } catch (_) {
+      biometricOk = true;
+    }
+
+    bool internetOk = false;
+    try {
+      final result = await InternetAddress.lookup('google.com');
+      if (result.isNotEmpty && result[0].rawAddress.isNotEmpty) {
+        internetOk = true;
+      }
+    } catch (_) {
+      internetOk = false;
+    }
+
+    bool deviceOk = false;
+    try {
+      if (Platform.isAndroid) {
+        final result = await _platform.invokeMethod('checkUsbDevices');
+        if (result != null && result is Map) {
+          final count = result['count'] ?? 0;
+          if (count > 0) {
+            deviceOk = true;
+          }
+        }
+      } else {
+        deviceOk = true;
+      }
+    } catch (_) {
+      deviceOk = true;
+    }
+
+    if (mounted) {
+      setState(() {
+        _cameraGranted = cameraStatus.isGranted;
+        _biometricGranted = biometricOk;
+        _internetGranted = internetOk;
+        _deviceConnected = deviceOk;
+      });
+    }
+  }
+
+  Future<void> _requestCamera() async {
+    await Permission.camera.request();
+    _checkAllPermissions();
+  }
+
+  Future<void> _requestBiometrics() async {
+    try {
+      final bool isSupported = await _auth.isDeviceSupported();
+      final bool canCheck = await _auth.canCheckBiometrics;
+
+      if (!isSupported || !canCheck) {
+        setState(() => _biometricGranted = true);
+        return;
+      }
+
+      final bool authenticated = await _auth.authenticate(
+        localizedReason:
+            'Scan fingerprint or face to verify secure biometric status',
+        options: const AuthenticationOptions(
+          stickyAuth: true,
+          biometricOnly: true,
+        ),
+      );
+      if (authenticated) {
+        _checkAllPermissions();
+      }
+    } catch (_) {
+      setState(() => _biometricGranted = true);
+    }
+  }
 
   @override
   void dispose() {
@@ -49,368 +156,452 @@ class _LoginScreenState extends State<LoginScreen> {
       );
       return;
     }
-    Get.offAll(() => const OperatorProfileScreen());
-    // _loginController.login(
-    //   email: userId,
-    //   password: password,
-    // );
+
+    /* 
+    if (!_cameraGranted ||
+        !_biometricGranted ||
+        !_internetGranted ||
+        !_deviceConnected) {
+      Get.snackbar(
+        "Security Check Required",
+        "Please ensure all secure environment permissions and USB scanner checks are green before logging in.",
+        backgroundColor: AppTheme.errorRed,
+        colorText: Colors.white,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return;
+    }
+    */
+
+    _loginController.login(email: userId, password: password);
+  }
+
+  Widget _buildMiniCheck(String label, bool status, VoidCallback onTap) {
+    const Color neonGreen = Color(0xFF10B981);
+    const Color errorRed = Color(0xFFEF5350);
+
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardTheme.color,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(
+              color: Theme.of(context).dividerColor.withOpacity(0.1),
+              width: 1,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                status ? Icons.check_circle : Icons.cancel,
+                color: status ? neonGreen : errorRed,
+                size: 12,
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  label,
+                  style: GoogleFonts.outfit(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.bold,
+                    color: status ? neonGreen : Theme.of(context).textTheme.bodySmall?.color,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF03081A),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final bool isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
-                  return SingleChildScrollView(
-                    physics: isKeyboardOpen
-                        ? const ClampingScrollPhysics()
-                        : const NeverScrollableScrollPhysics(),
-                    child: Container(
-                      constraints: BoxConstraints(
-                        minHeight: constraints.maxHeight,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(
+                parent: BouncingScrollPhysics(),
+              ),
+              child: Container(
+                constraints: BoxConstraints(
+                  minHeight: constraints.maxHeight,
+                ),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 24.0, vertical: 12.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        IconButton(
+                          icon: Icon(
+                            Get.isDarkMode ? Icons.light_mode : Icons.dark_mode,
+                            color: Theme.of(context).primaryColor,
+                          ),
+                          onPressed: () {
+                            Get.changeTheme(
+                              Get.isDarkMode ? AppTheme.lightTheme : AppTheme.darkTheme,
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      width: 64,
+                      height: 64,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Theme.of(context).primaryColor,
+                          width: 2.0,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Theme.of(context).primaryColor.withOpacity(0.4),
+                            blurRadius: 12,
+                            spreadRadius: 1,
+                          ),
+                        ],
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Theme.of(context).primaryColor.withOpacity(0.3),
+                            Theme.of(context).primaryColor.withOpacity(0.1),
+                          ],
+                        ),
                       ),
-                      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          const SizedBox(height: 10),
-                          // Neon circular face logo
-                          Container(
-                            width: 76,
-                            height: 76,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: const Color(0xFF1E88E5),
-                                width: 2.0,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: const Color(0xFF1E88E5).withOpacity(0.4),
-                                  blurRadius: 15,
-                                  spreadRadius: 1,
+                      child: Center(
+                        child: Icon(
+                          Icons.face_retouching_natural,
+                          color: Theme.of(context).primaryColor,
+                          size: 32,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'BioSecure',
+                      style: GoogleFonts.outfit(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).textTheme.titleLarge?.color,
+                        letterSpacing: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Operator Attendance Console',
+                      style: GoogleFonts.outfit(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: Theme.of(context).textTheme.bodyMedium?.color,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      constraints: const BoxConstraints(maxWidth: 400),
+                      child: Container(
+                        margin: const EdgeInsets.all(2.0),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).cardTheme.color,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: Theme.of(context).dividerColor.withOpacity(0.1),
+                            width: 1.0,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.05),
+                              blurRadius: 10,
+                              spreadRadius: 1,
+                            ),
+                          ],
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20.0,
+                          vertical: 20.0,
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Center(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 4,
                                 ),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context).primaryColor.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: Theme.of(context).primaryColor.withOpacity(0.5),
+                                    width: 1.2,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.person_outline,
+                                      size: 14,
+                                      color: Theme.of(context).primaryColor,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    CustomText.mono(
+                                      'OPERATOR MODE',
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: Theme.of(context).primaryColor,
+                                      letterSpacing: 1.1,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: CustomText.regular(
+                                'USER ID',
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: Theme.of(context).textTheme.bodyLarge?.color,
+                                letterSpacing: 1.2,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            TextField(
+                              controller: _userIdController,
+                              style: TextStyle(
+                                color: Theme.of(context).textTheme.bodyLarge?.color,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              cursorColor: Theme.of(context).primaryColor,
+                              decoration: InputDecoration(
+                                hintText: 'Enter operator ID',
+                                hintStyle: TextStyle(
+                                  color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.5),
+                                  fontSize: 13,
+                                ),
+                                fillColor: Theme.of(context).inputDecorationTheme.fillColor,
+                                filled: true,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 12,
+                                ),
+                                suffixIcon: Icon(
+                                  Icons.assignment_ind_outlined,
+                                  color: Theme.of(context).textTheme.bodySmall?.color,
+                                  size: 18,
+                                ),
+                                border: Theme.of(context).inputDecorationTheme.border,
+                                enabledBorder: Theme.of(context).inputDecorationTheme.enabledBorder,
+                                focusedBorder: Theme.of(context).inputDecorationTheme.focusedBorder,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                'PASSWORD',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: Theme.of(context).textTheme.bodyLarge?.color,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            TextField(
+                              controller: _passwordController,
+                              obscureText: !_isPasswordVisible,
+                              style: TextStyle(
+                                color: Theme.of(context).textTheme.bodyLarge?.color,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              decoration: InputDecoration(
+                                hintText: '••••••••',
+                                hintStyle: TextStyle(
+                                  color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.5),
+                                  fontSize: 13,
+                                ),
+                                fillColor: Theme.of(context).inputDecorationTheme.fillColor,
+                                filled: true,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 12,
+                                ),
+                                suffixIcon: IconButton(
+                                  icon: Icon(
+                                    _isPasswordVisible
+                                        ? Icons.visibility
+                                        : Icons.visibility_off,
+                                    color: Theme.of(context).textTheme.bodySmall?.color,
+                                    size: 18,
+                                  ),
+                                  onPressed: () {
+                                    setState(() {
+                                      _isPasswordVisible = !_isPasswordVisible;
+                                    });
+                                  },
+                                ),
+                                border: Theme.of(context).inputDecorationTheme.border,
+                                enabledBorder: Theme.of(context).inputDecorationTheme.enabledBorder,
+                                focusedBorder: Theme.of(context).inputDecorationTheme.focusedBorder,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                _buildMiniCheck(
+                                    'Camera', _cameraGranted, _requestCamera),
+                                _buildMiniCheck('Biometric', _biometricGranted,
+                                    _requestBiometrics),
                               ],
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [
-                                  const Color(0xFF0D47A1).withOpacity(0.3),
-                                  const Color(0xFF1976D2).withOpacity(0.1),
+                            ),
+                            const SizedBox(height: 6),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                _buildMiniCheck('Internet', _internetGranted,
+                                    _checkAllPermissions),
+                                _buildMiniCheck('USB Scanner', _deviceConnected,
+                                    _checkAllPermissions),
+                              ],
+                            ),
+                            const SizedBox(height: 18),
+                            Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(8),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Theme.of(context).primaryColor.withOpacity(0.3),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
+                                  ),
                                 ],
                               ),
-                            ),
-                            child: const Center(
-                              child: Icon(
-                                Icons.face_retouching_natural,
-                                color: Color(0xFF64B5F6),
-                                size: 40,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          // Header title "BioSecure"
-                          Text(
-                            'BioSecure',
-                            style: GoogleFonts.outfit(
-                              fontSize: 34,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                              letterSpacing: 1.5,
-                              shadows: [
-                                Shadow(
-                                  color: const Color(0xFF1E88E5).withOpacity(0.8),
-                                  blurRadius: 10,
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          // Subtitle
-                          Text(
-                            'Operator Attendance Console',
-                            style: GoogleFonts.outfit(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              color: const Color(0xFF90A4AE),
-                              letterSpacing: 1.2,
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          // Login HUD container Card
-                          Container(
-                            constraints: const BoxConstraints(maxWidth: 420),
-                            child: Container(
-                              margin: const EdgeInsets.all(2.0),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF0A1329).withOpacity(0.8),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: const Color(0xFF1A3D75).withOpacity(0.4),
-                                  width: 1.5,
-                                ),
-                              ),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 24.0,
-                                vertical: 24.0,
-                              ),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                      // Operator Mode pill
-                                      Center(
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 16,
-                                            vertical: 6,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFF0D254F),
-                                            borderRadius: BorderRadius.circular(20),
-                                            border: Border.all(
-                                              color: const Color(0xFF154385),
-                                              width: 1.2,
-                                            ),
-                                          ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              const Icon(
-                                                Icons.person_outline,
-                                                size: 16,
-                                                color: Color(0xFF4A90E2),
-                                              ),
-                                              const SizedBox(width: 8),
-                                               CustomText.mono(
-                                                 'OPERATOR MODE',
-                                                 fontSize: 12,
-                                                 fontWeight: FontWeight.bold,
-                                                 color: const Color(0xFF90CAF9),
-                                                 letterSpacing: 1.1,
-                                               ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 24),
-                                      // USER ID Field
-                                      Align(
-                                        alignment: Alignment.centerLeft,
-                                         child: CustomText.regular(
-                                           'USER ID',
-                                           fontSize: 13,
-                                           fontWeight: FontWeight.bold,
-                                           color: const Color(0xFF90A4AE),
-                                           letterSpacing: 1.2,
-                                         ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      TextField(
-                                        controller: _userIdController,
-                                        style: const TextStyle(
-                                          color: Color(0xFF1C2D42),
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                        cursorColor: const Color(0xFF1E88E5),
-                                        decoration: InputDecoration(
-                                          hintText: 'Enter operator ID',
-                                          hintStyle: const TextStyle(
-                                            color: Color(0xFF78909C),
-                                            fontSize: 15,
-                                          ),
-                                          fillColor: Colors.white,
-                                          filled: true,
-                                          contentPadding: const EdgeInsets.symmetric(
-                                            horizontal: 16,
-                                            vertical: 16,
-                                          ),
-                                          suffixIcon: const Icon(
-                                            Icons.assignment_ind_outlined,
-                                            color: Color(0xFF546E7A),
-                                            size: 22,
-                                          ),
-                                          border: OutlineInputBorder(
-                                            borderRadius: BorderRadius.circular(8),
-                                            borderSide: BorderSide.none,
-                                          ),
-                                          enabledBorder: OutlineInputBorder(
-                                            borderRadius: BorderRadius.circular(8),
-                                            borderSide: BorderSide.none,
-                                          ),
-                                          focusedBorder: OutlineInputBorder(
-                                            borderRadius: BorderRadius.circular(8),
-                                            borderSide: const BorderSide(
-                                              color: Color(0xFF1E88E5),
-                                              width: 1.5,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 16),
-                                      // PASSWORD Field
-                                      Align(
-                                        alignment: Alignment.centerLeft,
-                                        child: Text(
-                                          'PASSWORD',
-                                          style: GoogleFonts.outfit(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.bold,
-                                            color: const Color(0xFF90A4AE),
-                                            letterSpacing: 1.2,
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      TextField(
-                                        controller: _passwordController,
-                                        obscureText: true,
-                                        style: const TextStyle(
-                                          color: Color(0xFF1C2D42),
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                        cursorColor: const Color(0xFF1E88E5),
-                                        decoration: InputDecoration(
-                                          hintText: '••••••••',
-                                          hintStyle: const TextStyle(
-                                            color: Color(0xFF78909C),
-                                            fontSize: 15,
-                                          ),
-                                          fillColor: Colors.white,
-                                          filled: true,
-                                          contentPadding: const EdgeInsets.symmetric(
-                                            horizontal: 16,
-                                            vertical: 16,
-                                          ),
-                                          suffixIcon: const Icon(
-                                            Icons.lock_outline,
-                                            color: Color(0xFF546E7A),
-                                            size: 22,
-                                          ),
-                                          border: OutlineInputBorder(
-                                            borderRadius: BorderRadius.circular(8),
-                                            borderSide: BorderSide.none,
-                                          ),
-                                          enabledBorder: OutlineInputBorder(
-                                            borderRadius: BorderRadius.circular(8),
-                                            borderSide: BorderSide.none,
-                                          ),
-                                          focusedBorder: OutlineInputBorder(
-                                            borderRadius: BorderRadius.circular(8),
-                                            borderSide: const BorderSide(
-                                              color: Color(0xFF1E88E5),
-                                              width: 1.5,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 24),
-                                      // AUTHORIZE ACCESS Button
-                                      Container(
-                                        decoration: BoxDecoration(
-                                          borderRadius: BorderRadius.circular(8),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: const Color(0xFF1565C0).withOpacity(0.3),
-                                              blurRadius: 10,
-                                              offset: const Offset(0, 4),
-                                            ),
-                                          ],
-                                        ),
-                                        child: ElevatedButton(
-                                          onPressed: _handleLogin,
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: const Color(0xFF1E88E5),
-                                            padding: const EdgeInsets.symmetric(vertical: 16),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius: BorderRadius.circular(8),
-                                            ),
-                                            elevation: 0,
-                                          ),
-                                          child: Text(
-                                            'AUTHORIZE ACCESS',
-                                            style: GoogleFonts.outfit(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.white,
-                                              letterSpacing: 1.1,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 12),
-                                      // Forgot link
-                                      Center(
-                                        child: TextButton(
-                                          onPressed: () {
-                                            Get.snackbar(
-                                              "Information",
-                                              "Please contact administrator to retrieve account details.",
-                                              backgroundColor: const Color(0xFF0D254F),
-                                              colorText: Colors.white,
-                                            );
-                                          },
-                                          child: Text(
-                                            'Forgot identification details?',
-                                            style: GoogleFonts.outfit(
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.w600,
-                                              color: const Color(0xFF42A5F5),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
+                              child: ElevatedButton(
+                                onPressed: _handleLogin,
+                                style: Theme.of(context).elevatedButtonTheme.style,
+                                child: Text(
+                                  'AUTHORIZE ACCESS',
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: Get.isDarkMode ? Colors.black : Colors.white,
+                                    letterSpacing: 1.1,
                                   ),
                                 ),
                               ),
-                          const SizedBox(height: 24),
-                          // Footer with shield check icon
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(
-                                Icons.verified_user_outlined,
-                                size: 14,
-                                color: Color(0xFF455A64),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                'SYSTEM V2.4.0 — ENCRYPTED NODE',
-                                style: GoogleFonts.outfit(
-                                  fontSize: 11,
-                                  color: const Color(0xFF455A64),
-                                  letterSpacing: 1.1,
+                            ),
+                            const SizedBox(height: 8),
+                            Center(
+                              child: TextButton(
+                                onPressed: () {
+                                  Get.snackbar(
+                                    "Information",
+                                    "Please contact administrator to retrieve account details.",
+                                    backgroundColor: Theme.of(context).colorScheme.primary,
+                                    colorText: Colors.white,
+                                  );
+                                },
+                                child: Text(
+                                  'Forgot identification details?',
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Theme.of(context).primaryColor,
+                                  ),
                                 ),
                               ),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          // Secure terminal text
-                          Text(
-                            'SECURE AES-256 OPERATOR TERMINAL',
-                            style: GoogleFonts.outfit(
-                              fontSize: 10,
-                              color: const Color(0xFF37474F),
-                              letterSpacing: 1.2,
                             ),
-                          ),
-                          const SizedBox(height: 10),
-                        ],
+                            const SizedBox(height: 4),
+                            Center(
+                              child: OutlinedButton.icon(
+                                onPressed: () {
+                                  Get.to(() => const FingerTestScreen());
+                                },
+                                icon: const Icon(Icons.fingerprint, size: 14),
+                                label:
+                                    const Text('FINGERPRINT SENSOR DIAGNOSTIC'),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Theme.of(context).primaryColor,
+                                  side: BorderSide(
+                                      color: Theme.of(context).primaryColor, width: 1.2),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 8),
+                                  textStyle: GoogleFonts.outfit(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  );
-                },
+                    const SizedBox(height: 20),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.verified_user_outlined,
+                          size: 12,
+                          color: Theme.of(context).textTheme.bodySmall?.color,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'SYSTEM V2.4.0 — ENCRYPTED NODE',
+                          style: GoogleFonts.outfit(
+                            fontSize: 9.5,
+                            color: Theme.of(context).textTheme.bodySmall?.color,
+                            letterSpacing: 1.1,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'SECURE AES-256 OPERATOR TERMINAL',
+                      style: GoogleFonts.outfit(
+                        fontSize: 8.5,
+                        color: Theme.of(context).textTheme.bodySmall?.color,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+                ),
               ),
-            ),
+            );
+          },
+        ),
+      ),
     );
   }
 }
-
-

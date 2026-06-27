@@ -20,19 +20,13 @@ subprojects {
 }
 
 subprojects {
-    fun configureNamespace(proj: Project) {
-        proj.extensions.findByType<com.android.build.gradle.BaseExtension>()?.apply {
+    if (name == "app") return@subprojects
+    afterEvaluate {
+        extensions.findByType<com.android.build.gradle.BaseExtension>()?.apply {
             if (namespace.isNullOrEmpty()) {
-                namespace = proj.group.toString()
+                namespace = project.group.toString()
             }
-        }
-    }
-
-    if (project.state.executed) {
-        configureNamespace(project)
-    } else {
-        project.afterEvaluate {
-            configureNamespace(project)
+            compileSdkVersion(34)
         }
     }
 }

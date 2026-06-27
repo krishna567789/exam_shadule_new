@@ -25,7 +25,7 @@ class CustomTextField extends StatelessWidget {
           style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w600,
-            color: AppTheme.textLight,
+            color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7),
           ),
         ),
         const SizedBox(height: 8),

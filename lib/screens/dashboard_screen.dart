@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import '../controller/dashboard_controller.dart';
 import '../controller/download_controller.dart';
+import '../controller/login_controller.dart';
+import '../utils/app_theme.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -14,6 +17,7 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   final DashboardController _dashboardController = Get.put(DashboardController());
   final DownloadController _downloadController = Get.put(DownloadController());
+  final LoginController _loginController = Get.find<LoginController>();
   
   @override
   void initState() {
@@ -23,25 +27,71 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _startSync() {
-    _dashboardController.sendAttendanceData();
+    _dashboardController.syncAndUploadData();
+  }
+
+  void _showLogoutDialog() {
+    Get.dialog(
+      Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.logout, color: Colors.red, size: 48),
+              const SizedBox(height: 16),
+              Text(
+                "Confirm Logout",
+                style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                "Are you sure you want to log out? Local data will be cleared.",
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Get.back(),
+                      child: const Text("CANCEL"),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                      onPressed: () {
+                        Get.back();
+                        _loginController.logout();
+                      },
+                      child: const Text("LOGOUT", style: TextStyle(color: Colors.white)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildHudCard({
     required Widget child,
-    bool showTopLeft = true,
-    bool showTopRight = true,
-    bool showBottomLeft = true,
-    bool showBottomRight = true,
   }) {
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.all(2.0),
       decoration: BoxDecoration(
-        color: const Color(0xFF0A1329).withOpacity(0.8),
+        color: Theme.of(context).cardTheme.color,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: const Color(0xFF1A3D75).withOpacity(0.4),
-          width: 1.5,
+          color: Theme.of(context).dividerColor.withOpacity(0.1),
+          width: 1.0,
         ),
       ),
       padding: const EdgeInsets.all(20.0),
@@ -52,99 +102,108 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     const Color cyberBlue = Color(0xFF2196F3);
-    const Color cyberCyan = Color(0xFF64B5F6);
-    const Color textMuted = Color(0xFF90A4AE);
     const Color neonGreen = Color(0xFF10B981);
-    const Color errorRed = Color(0xFFEF5350);
+    final Color textMuted = Theme.of(context).brightness == Brightness.light 
+        ? const Color(0xFF64748B) 
+        : Colors.white70;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF03081A),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
-            child: Column(
-              children: [
-                // Header Section (Cyber Console Style)
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF0A1329).withOpacity(0.8),
-                    border: const Border(
-                      bottom: BorderSide(
-                        color: Color(0xFF1A3D75),
-                        width: 1.5,
-                      ),
-                    ),
+        child: Column(
+          children: [
+            // Header Section
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Theme.of(context).cardTheme.color?.withOpacity(0.5),
+                border: Border(
+                  bottom: BorderSide(
+                    color: Theme.of(context).dividerColor.withOpacity(0.1),
+                    width: 1.0,
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            children: [
-                              const Icon(Icons.location_on, color: cyberCyan, size: 16),
-                              const SizedBox(width: 8),
-                              Obx(() => Text(
-                                _dashboardController.centerCode.value.isNotEmpty
-                                    ? _dashboardController.centerCode.value
-                                    : 'CNTR-104',
+                      Expanded(
+                        child: Row(
+                          children: [
+                            const Icon(Icons.location_on, color: Color(0xFF1976D2), size: 16),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Obx(() => Text(
+                                _dashboardController.centerCode.value,
                                 style: GoogleFonts.outfit(
-                                  color: cyberCyan,
+                                  color: const Color(0xFF1976D2),
                                   fontSize: 13,
                                   letterSpacing: 1.1,
                                 ),
+                                overflow: TextOverflow.ellipsis,
                               )),
-                            ],
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.logout, color: errorRed),
-                            onPressed: () {
-                              Navigator.of(context).popUntil((route) => route.isFirst);
-                            },
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Obx(() => Text(
-                        _dashboardController.centerName.value.isNotEmpty
-                            ? _dashboardController.centerName.value
-                            : 'Govt. Polytechnic College, Zone 4',
-                        style: GoogleFonts.outfit(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.2,
-                          shadows: [
-                            Shadow(
-                              color: cyberBlue.withOpacity(0.5),
-                              blurRadius: 8,
                             ),
                           ],
                         ),
-                      )),
-                      const SizedBox(height: 8),
-                      Text(
-                        'MANAGEMENT DASHBOARD & SYNC STATUS',
-                        style: GoogleFonts.outfit(
-                          color: textMuted,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 1.5,
-                        ),
+                      ),
+                      Row(
+                        children: [
+                          IconButton(
+                            icon: Icon(Get.isDarkMode ? Icons.light_mode : Icons.dark_mode,
+                                color: Theme.of(context).primaryColor),
+                            onPressed: () => Get.changeTheme(
+                                Get.isDarkMode ? AppTheme.lightTheme : AppTheme.darkTheme),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.logout, color: Colors.redAccent),
+                            onPressed: () => _showLogoutDialog(),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ),
-                
-                Expanded(
-                  child: SingleChildScrollView(
+                  const SizedBox(height: 4),
+                  Obx(() => Text(
+                    _dashboardController.centerName.value,
+                    style: GoogleFonts.outfit(
+                      color: Theme.of(context).textTheme.titleLarge?.color,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.2,
+                    ),
+                  )),
+                  const SizedBox(height: 8),
+                  Text(
+                    'MANAGEMENT DASHBOARD & SYNC STATUS',
+                    style: GoogleFonts.outfit(
+                      color: textMuted,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            
+            Expanded(
+              child: ValueListenableBuilder(
+                valueListenable: Hive.box('candidates_box').listenable(),
+                builder: (context, Box box, _) {
+                  int total = box.length;
+                  int present = box.values.where((s) => (s as Map)['attendanceStatus'] == true).length;
+                  int synced = box.values.where((s) => (s as Map)['syncStatus'] == true).length;
+                  int pending = present - synced;
+
+                  return SingleChildScrollView(
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
                     child: Column(
                       children: [
                         // Live Status Card
                         _buildHudCard(
-                          showTopLeft: true,
-                          showBottomRight: true,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -153,24 +212,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 children: [
                                   Row(
                                     children: [
-                                      const Icon(Icons.cloud_queue, color: cyberCyan, size: 18),
+                                      const Icon(Icons.cloud_sync, color: Color(0xFF1976D2), size: 18),
                                       const SizedBox(width: 8),
                                       Text(
-                                        'LIVE STATUS',
+                                        'SYNC STATUS',
                                         style: GoogleFonts.outfit(
                                           fontWeight: FontWeight.bold,
-                                          color: Colors.white,
+                                          color: Theme.of(context).textTheme.titleSmall?.color,
                                           letterSpacing: 1.2,
-                                          fontSize: 15,
+                                          fontSize: 14,
                                         ),
                                       ),
                                     ],
                                   ),
                                   Text(
-                                    'Synced: 25/05/2026, 19:58:55',
+                                    pending > 0 ? '$pending Pending' : 'All Synced',
                                     style: GoogleFonts.outfit(
-                                      color: textMuted,
+                                      color: pending > 0 ? Colors.orange : neonGreen,
                                       fontSize: 10,
+                                      fontWeight: FontWeight.bold,
                                     ),
                                   ),
                                 ],
@@ -179,105 +239,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                                 children: [
-                                  Column(
-                                    children: [
-                                      Text(
-                                        'SCHEDULED',
-                                        style: GoogleFonts.outfit(
-                                          color: textMuted,
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w600,
-                                          letterSpacing: 1.0,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 6),
-                                      Obx(() => Text(
-                                        '${_downloadController.totalStudents.value}',
-                                        style: GoogleFonts.outfit(
-                                          fontSize: 24,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.white,
-                                        ),
-                                      )),
-                                    ],
-                                  ),
-                                  Container(
-                                    width: 1.5,
-                                    height: 40,
-                                    color: const Color(0xFF1A3D75).withOpacity(0.4),
-                                  ),
-                                  Column(
-                                    children: [
-                                      Text(
-                                        'ON DEVICE',
-                                        style: GoogleFonts.outfit(
-                                          color: textMuted,
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w600,
-                                          letterSpacing: 1.0,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 6),
-                                      Obx(() => Text(
-                                        '${_downloadController.totalStudents.value}',
-                                        style: GoogleFonts.outfit(
-                                          fontSize: 24,
-                                          fontWeight: FontWeight.bold,
-                                          color: neonGreen,
-                                        ),
-                                      )),
-                                    ],
-                                  ),
+                                  _buildStatColumn('SCHEDULED', total.toString(), Theme.of(context).textTheme.bodyLarge?.color),
+                                  Container(width: 1, height: 30, color: Theme.of(context).dividerColor.withOpacity(0.1)),
+                                  _buildStatColumn('PRESENT', present.toString(), neonGreen),
+                                  Container(width: 1, height: 30, color: Theme.of(context).dividerColor.withOpacity(0.1)),
+                                  _buildStatColumn('SYNCED', synced.toString(), cyberBlue),
                                 ],
                               ),
                               const SizedBox(height: 20),
-                              Container(
-                                width: double.infinity,
+                              Obx(() => Container(
                                 padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF112244).withOpacity(0.5),
+                                  color: Colors.grey.withOpacity(0.05),
                                   borderRadius: BorderRadius.circular(8),
-                                  border: Border(
-                                    left: BorderSide(
-                                      color: cyberBlue.withOpacity(0.8),
-                                      width: 3,
-                                    ),
-                                  ),
                                 ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
-                                    Obx(() => Text(
-                                      _dashboardController.centerName.value.isNotEmpty
-                                          ? _dashboardController.centerName.value
-                                          : 'Govt. Polytechnic College, Zone 4',
-                                      style: GoogleFonts.outfit(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 13,
-                                        letterSpacing: 0.5,
-                                      ),
-                                    )),
-                                    const SizedBox(height: 6),
-                                    Row(
-                                      children: [
-                                        const Icon(Icons.access_time, size: 12, color: cyberCyan),
-                                        const SizedBox(width: 6),
-                                        Obx(() => Text(
-                                          _downloadController.shift.value.isNotEmpty
-                                              ? '${_downloadController.shift.value} (${_downloadController.timing.value})'
-                                              : 'Morning (Shift 1) (09:00 AM - 12:00 PM)',
-                                          style: GoogleFonts.outfit(
-                                            color: textMuted,
-                                            fontSize: 11,
-                                          ),
-                                        )),
-                                      ],
+                                    Text("SERVER STATUS", style: GoogleFonts.outfit(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey)),
+                                    Text(
+                                      "Total: ${_dashboardController.totalCandidates.value} | Present: ${_dashboardController.presentCandidates.value}",
+                                      style: GoogleFonts.outfit(fontSize: 10, fontWeight: FontWeight.bold, color: cyberBlue),
                                     ),
                                   ],
                                 ),
-                              ),
-                              const SizedBox(height: 20),
+                              )),
+                              const SizedBox(height: 24),
                               Obx(() {
                                 final bool loading = _dashboardController.isLoading.value;
                                 return Container(
@@ -289,69 +276,40 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                         ? null
                                         : const LinearGradient(
                                             colors: [Color(0xFF1976D2), Color(0xFF2196F3)],
-                                            begin: Alignment.topLeft,
-                                            end: Alignment.bottomRight,
                                           ),
-                                    color: loading ? Colors.grey.shade800 : null,
-                                    boxShadow: loading
-                                        ? []
-                                        : [
-                                            BoxShadow(
-                                              color: cyberBlue.withOpacity(0.3),
-                                              blurRadius: 10,
-                                              offset: const Offset(0, 4),
-                                            ),
-                                          ],
+                                    color: loading ? Colors.grey.withOpacity(0.2) : null,
                                   ),
                                   child: ElevatedButton.icon(
                                     onPressed: loading ? null : _startSync,
                                     icon: Icon(
-                                      loading ? Icons.sync : Icons.cloud_upload_outlined,
+                                      loading ? Icons.hourglass_empty : Icons.cloud_upload_outlined,
                                       size: 18,
                                       color: Colors.white,
                                     ),
                                     label: Text(
-                                      loading ? 'SYNCING...' : 'SYNC & UPLOAD',
+                                      loading ? 'UPLOADING...' : 'SYNC & UPLOAD DATA',
                                       style: GoogleFonts.outfit(
-                                        fontSize: 15,
+                                        fontSize: 14,
                                         fontWeight: FontWeight.bold,
                                         color: Colors.white,
-                                        letterSpacing: 1.5,
+                                        letterSpacing: 1.2,
                                       ),
                                     ),
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: Colors.transparent,
                                       shadowColor: Colors.transparent,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
                                     ),
                                   ),
                                 );
                               }),
                               Obx(() => _dashboardController.isLoading.value
-                                  ? Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        const SizedBox(height: 16),
-                                        ClipRRect(
-                                          borderRadius: BorderRadius.circular(4),
-                                          child: LinearProgressIndicator(
-                                            backgroundColor: const Color(0xFF0A1329),
-                                            color: neonGreen,
-                                            minHeight: 6,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Text(
-                                          'Uploading in progress...',
-                                          style: GoogleFonts.outfit(
-                                            fontSize: 11,
-                                            color: neonGreen,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ],
+                                  ? Padding(
+                                      padding: const EdgeInsets.only(top: 16),
+                                      child: LinearProgressIndicator(
+                                        backgroundColor: Colors.grey.withOpacity(0.1),
+                                        color: cyberBlue,
+                                        minHeight: 4,
+                                      ),
                                     )
                                   : const SizedBox.shrink()),
                             ],
@@ -359,151 +317,64 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ),
                         const SizedBox(height: 16),
                         
-                        // Attendance Overview Card
+                        // Session Info Card
                         _buildHudCard(
-                          showTopRight: true,
-                          showBottomLeft: true,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
                                 children: [
-                                  const Icon(Icons.analytics_outlined, color: cyberCyan, size: 18),
+                                  const Icon(Icons.assignment_outlined, color: Color(0xFF1976D2), size: 18),
                                   const SizedBox(width: 8),
                                   Text(
-                                    'ATTENDANCE OVERVIEW',
+                                    'SESSION INFORMATION',
                                     style: GoogleFonts.outfit(
                                       fontWeight: FontWeight.bold,
-                                      color: Colors.white,
+                                      color: Theme.of(context).textTheme.titleSmall?.color,
                                       letterSpacing: 1.2,
-                                      fontSize: 15,
+                                      fontSize: 14,
                                     ),
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 20),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFF112244).withOpacity(0.5),
-                                        borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(
-                                          color: const Color(0xFF1A3D75).withOpacity(0.4),
-                                        ),
-                                      ),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            'SCHEDULED',
-                                            style: GoogleFonts.outfit(
-                                              fontSize: 10,
-                                              color: textMuted,
-                                              fontWeight: FontWeight.bold,
-                                              letterSpacing: 0.5,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 6),
-                                          Obx(() => Text(
-                                            '${_downloadController.totalStudents.value}',
-                                            style: GoogleFonts.outfit(
-                                              fontSize: 18,
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.white,
-                                            ),
-                                          )),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFF0A2E24).withOpacity(0.6),
-                                        borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(
-                                          color: neonGreen.withOpacity(0.4),
-                                        ),
-                                      ),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            'PRESENT ↗',
-                                            style: GoogleFonts.outfit(
-                                              fontSize: 10,
-                                              color: neonGreen,
-                                              fontWeight: FontWeight.bold,
-                                              letterSpacing: 0.5,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 6),
-                                          Text(
-                                            '2',
-                                            style: GoogleFonts.outfit(
-                                              fontSize: 18,
-                                              fontWeight: FontWeight.bold,
-                                              color: neonGreen,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFF331616).withOpacity(0.6),
-                                        borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(
-                                          color: errorRed.withOpacity(0.4),
-                                        ),
-                                      ),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            'ABSENT ↘',
-                                            style: GoogleFonts.outfit(
-                                              fontSize: 10,
-                                              color: errorRed,
-                                              fontWeight: FontWeight.bold,
-                                              letterSpacing: 0.5,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 6),
-                                          Text(
-                                            '148',
-                                            style: GoogleFonts.outfit(
-                                              fontSize: 18,
-                                              fontWeight: FontWeight.bold,
-                                              color: errorRed,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
+                              const SizedBox(height: 16),
+                              _buildInfoRow('Exam Name', _dashboardController.examName.value),
+                              const SizedBox(height: 12),
+                              _buildInfoRow('Shift', _downloadController.shift.value),
+                              const SizedBox(height: 12),
+                              _buildInfoRow('Operator ID', Hive.box('candidates_box').get('operatorId') ?? 'OP-NEW'),
                             ],
                           ),
                         ),
                       ],
                     ),
-                  ),
-                ),
-              ],
+                  );
+                }
+              ),
             ),
+          ],
+        ),
       ),
     );
   }
-}
 
+  Widget _buildStatColumn(String label, String value, Color? color) {
+    return Column(
+      children: [
+        Text(label, style: GoogleFonts.outfit(fontSize: 9, color: Colors.grey, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 4),
+        Text(value, style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: color)),
+      ],
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: GoogleFonts.outfit(fontSize: 12, color: Colors.grey)),
+        Expanded(child: Text(value, textAlign: TextAlign.end, style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
+      ],
+    );
+  }
+}
