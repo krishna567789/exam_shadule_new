@@ -124,11 +124,9 @@ class LoginController extends GetxController {
       var checkHeaders = {
         'Authorization': 'Bearer $token',
       };
-
       print("--- PROFILE CHECK REQUEST ---");
       print("URL: $checkUrl");
       print("Headers: $checkHeaders");
-
       final response = await http.get(
         Uri.parse(checkUrl),
         headers: checkHeaders,
