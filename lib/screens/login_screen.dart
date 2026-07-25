@@ -4,7 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:get/get.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:local_auth/local_auth.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'dart:async';
 import '../utils/app_theme.dart';
 import '../controller/login_controller.dart';
 import '../widgets/custom_text.dart';
@@ -26,9 +27,9 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _cameraGranted = false;
   bool _biometricGranted = false;
   bool _internetGranted = false;
-  bool _deviceConnected = false;
 
-  final LocalAuthentication _auth = LocalAuthentication();
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
+
   static const _platform =
       MethodChannel('com.example.exam_shadule_new/rd_service');
 
@@ -36,6 +37,42 @@ class _LoginScreenState extends State<LoginScreen> {
   void initState() {
     super.initState();
     _checkAllPermissions();
+    _initLiveInternetCheck();
+  }
+
+  void _initLiveInternetCheck() {
+    _connectivitySubscription = Connectivity()
+        .onConnectivityChanged
+        .listen((List<ConnectivityResult> results) async {
+      bool isConnected = results.contains(ConnectivityResult.mobile) ||
+          results.contains(ConnectivityResult.wifi) ||
+          results.contains(ConnectivityResult.ethernet) ||
+          results.contains(ConnectivityResult.vpn);
+
+      if (!isConnected) {
+        try {
+          final result = await InternetAddress.lookup('google.com')
+              .timeout(const Duration(seconds: 2));
+          if (result.isNotEmpty && result[0].rawAddress.isNotEmpty) {
+            isConnected = true;
+          }
+        } catch (_) {}
+      }
+
+      if (mounted) {
+        setState(() {
+          _internetGranted = isConnected;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _connectivitySubscription?.cancel();
+    _userIdController.dispose();
+    _passwordController.dispose();
+    super.dispose();
   }
 
   Future<void> _checkAllPermissions() async {
@@ -43,46 +80,42 @@ class _LoginScreenState extends State<LoginScreen> {
 
     bool biometricOk = false;
     try {
-      final bool isSupported = await _auth.isDeviceSupported();
-      final bool canCheck = await _auth.canCheckBiometrics;
-      if (isSupported && canCheck) {
-        final List<BiometricType> enrolled =
-            await _auth.getAvailableBiometrics();
-        if (enrolled.isNotEmpty) {
-          biometricOk = true;
-        }
-      } else {
-        biometricOk = true;
-      }
-    } catch (_) {
-      biometricOk = true;
-    }
-
-    bool internetOk = false;
-    try {
-      final result = await InternetAddress.lookup('google.com');
-      if (result.isNotEmpty && result[0].rawAddress.isNotEmpty) {
-        internetOk = true;
-      }
-    } catch (_) {
-      internetOk = false;
-    }
-
-    bool deviceOk = false;
-    try {
       if (Platform.isAndroid) {
         final result = await _platform.invokeMethod('checkUsbDevices');
         if (result != null && result is Map) {
           final count = result['count'] ?? 0;
           if (count > 0) {
-            deviceOk = true;
+            biometricOk = true;
           }
         }
       } else {
-        deviceOk = true;
+        biometricOk = true;
       }
     } catch (_) {
-      deviceOk = true;
+      biometricOk = false;
+    }
+
+    bool internetOk = false;
+    try {
+      final connectivityResults = await Connectivity().checkConnectivity();
+      if (connectivityResults.contains(ConnectivityResult.mobile) ||
+          connectivityResults.contains(ConnectivityResult.wifi) ||
+          connectivityResults.contains(ConnectivityResult.ethernet) ||
+          connectivityResults.contains(ConnectivityResult.vpn)) {
+        internetOk = true;
+      }
+    } catch (_) {}
+
+    if (!internetOk) {
+      try {
+        final result = await InternetAddress.lookup('google.com')
+            .timeout(const Duration(seconds: 2));
+        if (result.isNotEmpty && result[0].rawAddress.isNotEmpty) {
+          internetOk = true;
+        }
+      } catch (_) {
+        internetOk = false;
+      }
     }
 
     if (mounted) {
@@ -90,7 +123,6 @@ class _LoginScreenState extends State<LoginScreen> {
         _cameraGranted = cameraStatus.isGranted;
         _biometricGranted = biometricOk;
         _internetGranted = internetOk;
-        _deviceConnected = deviceOk;
       });
     }
   }
@@ -101,36 +133,24 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _requestBiometrics() async {
-    try {
-      final bool isSupported = await _auth.isDeviceSupported();
-      final bool canCheck = await _auth.canCheckBiometrics;
-
-      if (!isSupported || !canCheck) {
-        setState(() => _biometricGranted = true);
-        return;
-      }
-
-      final bool authenticated = await _auth.authenticate(
-        localizedReason:
-            'Scan fingerprint or face to verify secure biometric status',
-        options: const AuthenticationOptions(
-          stickyAuth: true,
-          biometricOnly: true,
-        ),
+    await _checkAllPermissions();
+    if (_biometricGranted) {
+      Get.snackbar(
+        "SecuGen USB Connected",
+        "SecuGen fingerprint scanner detected via USB.",
+        backgroundColor: const Color(0xFF10B981),
+        colorText: Colors.white,
+        snackPosition: SnackPosition.BOTTOM,
       );
-      if (authenticated) {
-        _checkAllPermissions();
-      }
-    } catch (_) {
-      setState(() => _biometricGranted = true);
+    } else {
+      Get.snackbar(
+        "USB Scanner Required",
+        "Please connect SecuGen HU20 biometric device via USB OTG cable.",
+        backgroundColor: Colors.orange,
+        colorText: Colors.white,
+        snackPosition: SnackPosition.BOTTOM,
+      );
     }
-  }
-
-  @override
-  void dispose() {
-    _userIdController.dispose();
-    _passwordController.dispose();
-    super.dispose();
   }
 
   void _handleLogin() {
@@ -157,21 +177,16 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    /* 
-    if (!_cameraGranted ||
-        !_biometricGranted ||
-        !_internetGranted ||
-        !_deviceConnected) {
+    if (!_cameraGranted || !_internetGranted) {
       Get.snackbar(
         "Security Check Required",
-        "Please ensure all secure environment permissions and USB scanner checks are green before logging in.",
+        "Camera and Internet connections are required to login.",
         backgroundColor: AppTheme.errorRed,
         colorText: Colors.white,
         snackPosition: SnackPosition.BOTTOM,
       );
       return;
     }
-    */
 
     _loginController.login(email: userId, password: password);
   }
@@ -209,7 +224,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   style: GoogleFonts.outfit(
                     fontSize: 9.5,
                     fontWeight: FontWeight.bold,
-                    color: status ? neonGreen : Theme.of(context).textTheme.bodySmall?.color,
+                    color: status
+                        ? neonGreen
+                        : Theme.of(context).textTheme.bodySmall?.color,
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -252,7 +269,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           onPressed: () {
                             Get.changeTheme(
-                              Get.isDarkMode ? AppTheme.lightTheme : AppTheme.darkTheme,
+                              Get.isDarkMode
+                                  ? AppTheme.lightTheme
+                                  : AppTheme.darkTheme,
                             );
                           },
                         ),
@@ -270,7 +289,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: Theme.of(context).primaryColor.withOpacity(0.4),
+                            color:
+                                Theme.of(context).primaryColor.withOpacity(0.4),
                             blurRadius: 12,
                             spreadRadius: 1,
                           ),
@@ -294,7 +314,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      'BioSecure',
+                      'Secure Exam',
                       style: GoogleFonts.outfit(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
@@ -321,7 +341,8 @@ class _LoginScreenState extends State<LoginScreen> {
                           color: Theme.of(context).cardTheme.color,
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
-                            color: Theme.of(context).dividerColor.withOpacity(0.1),
+                            color:
+                                Theme.of(context).dividerColor.withOpacity(0.1),
                             width: 1.0,
                           ),
                           boxShadow: [
@@ -347,10 +368,14 @@ class _LoginScreenState extends State<LoginScreen> {
                                   vertical: 4,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: Theme.of(context).primaryColor.withOpacity(0.1),
+                                  color: Theme.of(context)
+                                      .primaryColor
+                                      .withOpacity(0.1),
                                   borderRadius: BorderRadius.circular(20),
                                   border: Border.all(
-                                    color: Theme.of(context).primaryColor.withOpacity(0.5),
+                                    color: Theme.of(context)
+                                        .primaryColor
+                                        .withOpacity(0.5),
                                     width: 1.2,
                                   ),
                                 ),
@@ -381,7 +406,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                 'USER ID',
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,
-                                color: Theme.of(context).textTheme.bodyLarge?.color,
+                                color: Theme.of(context)
+                                    .textTheme
+                                    .bodyLarge
+                                    ?.color,
                                 letterSpacing: 1.2,
                               ),
                             ),
@@ -389,7 +417,10 @@ class _LoginScreenState extends State<LoginScreen> {
                             TextField(
                               controller: _userIdController,
                               style: TextStyle(
-                                color: Theme.of(context).textTheme.bodyLarge?.color,
+                                color: Theme.of(context)
+                                    .textTheme
+                                    .bodyLarge
+                                    ?.color,
                                 fontSize: 14,
                                 fontWeight: FontWeight.w500,
                               ),
@@ -397,10 +428,16 @@ class _LoginScreenState extends State<LoginScreen> {
                               decoration: InputDecoration(
                                 hintText: 'Enter operator ID',
                                 hintStyle: TextStyle(
-                                  color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.5),
+                                  color: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.color
+                                      ?.withOpacity(0.5),
                                   fontSize: 13,
                                 ),
-                                fillColor: Theme.of(context).inputDecorationTheme.fillColor,
+                                fillColor: Theme.of(context)
+                                    .inputDecorationTheme
+                                    .fillColor,
                                 filled: true,
                                 contentPadding: const EdgeInsets.symmetric(
                                   horizontal: 14,
@@ -408,12 +445,21 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                                 suffixIcon: Icon(
                                   Icons.assignment_ind_outlined,
-                                  color: Theme.of(context).textTheme.bodySmall?.color,
+                                  color: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.color,
                                   size: 18,
                                 ),
-                                border: Theme.of(context).inputDecorationTheme.border,
-                                enabledBorder: Theme.of(context).inputDecorationTheme.enabledBorder,
-                                focusedBorder: Theme.of(context).inputDecorationTheme.focusedBorder,
+                                border: Theme.of(context)
+                                    .inputDecorationTheme
+                                    .border,
+                                enabledBorder: Theme.of(context)
+                                    .inputDecorationTheme
+                                    .enabledBorder,
+                                focusedBorder: Theme.of(context)
+                                    .inputDecorationTheme
+                                    .focusedBorder,
                               ),
                             ),
                             const SizedBox(height: 12),
@@ -424,7 +470,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                 style: GoogleFonts.outfit(
                                   fontSize: 11,
                                   fontWeight: FontWeight.bold,
-                                  color: Theme.of(context).textTheme.bodyLarge?.color,
+                                  color: Theme.of(context)
+                                      .textTheme
+                                      .bodyLarge
+                                      ?.color,
                                   letterSpacing: 1.2,
                                 ),
                               ),
@@ -434,17 +483,26 @@ class _LoginScreenState extends State<LoginScreen> {
                               controller: _passwordController,
                               obscureText: !_isPasswordVisible,
                               style: TextStyle(
-                                color: Theme.of(context).textTheme.bodyLarge?.color,
+                                color: Theme.of(context)
+                                    .textTheme
+                                    .bodyLarge
+                                    ?.color,
                                 fontSize: 14,
                                 fontWeight: FontWeight.w500,
                               ),
                               decoration: InputDecoration(
                                 hintText: '••••••••',
                                 hintStyle: TextStyle(
-                                  color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.5),
+                                  color: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.color
+                                      ?.withOpacity(0.5),
                                   fontSize: 13,
                                 ),
-                                fillColor: Theme.of(context).inputDecorationTheme.fillColor,
+                                fillColor: Theme.of(context)
+                                    .inputDecorationTheme
+                                    .fillColor,
                                 filled: true,
                                 contentPadding: const EdgeInsets.symmetric(
                                   horizontal: 14,
@@ -455,7 +513,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                     _isPasswordVisible
                                         ? Icons.visibility
                                         : Icons.visibility_off,
-                                    color: Theme.of(context).textTheme.bodySmall?.color,
+                                    color: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall
+                                        ?.color,
                                     size: 18,
                                   ),
                                   onPressed: () {
@@ -464,9 +525,15 @@ class _LoginScreenState extends State<LoginScreen> {
                                     });
                                   },
                                 ),
-                                border: Theme.of(context).inputDecorationTheme.border,
-                                enabledBorder: Theme.of(context).inputDecorationTheme.enabledBorder,
-                                focusedBorder: Theme.of(context).inputDecorationTheme.focusedBorder,
+                                border: Theme.of(context)
+                                    .inputDecorationTheme
+                                    .border,
+                                enabledBorder: Theme.of(context)
+                                    .inputDecorationTheme
+                                    .enabledBorder,
+                                focusedBorder: Theme.of(context)
+                                    .inputDecorationTheme
+                                    .focusedBorder,
                               ),
                             ),
                             const SizedBox(height: 12),
@@ -475,8 +542,8 @@ class _LoginScreenState extends State<LoginScreen> {
                               children: [
                                 _buildMiniCheck(
                                     'Camera', _cameraGranted, _requestCamera),
-                                _buildMiniCheck('Biometric', _biometricGranted,
-                                    _requestBiometrics),
+                                _buildMiniCheck('SecuGen USB (Opt)',
+                                    _biometricGranted, _requestBiometrics),
                               ],
                             ),
                             const SizedBox(height: 6),
@@ -484,8 +551,6 @@ class _LoginScreenState extends State<LoginScreen> {
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 _buildMiniCheck('Internet', _internetGranted,
-                                    _checkAllPermissions),
-                                _buildMiniCheck('USB Scanner', _deviceConnected,
                                     _checkAllPermissions),
                               ],
                             ),
@@ -495,7 +560,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                 borderRadius: BorderRadius.circular(8),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Theme.of(context).primaryColor.withOpacity(0.3),
+                                    color: Theme.of(context)
+                                        .primaryColor
+                                        .withOpacity(0.3),
                                     blurRadius: 10,
                                     offset: const Offset(0, 4),
                                   ),
@@ -503,13 +570,16 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                               child: ElevatedButton(
                                 onPressed: _handleLogin,
-                                style: Theme.of(context).elevatedButtonTheme.style,
+                                style:
+                                    Theme.of(context).elevatedButtonTheme.style,
                                 child: Text(
                                   'AUTHORIZE ACCESS',
                                   style: GoogleFonts.outfit(
                                     fontSize: 14,
                                     fontWeight: FontWeight.bold,
-                                    color: Get.isDarkMode ? Colors.black : Colors.white,
+                                    color: Get.isDarkMode
+                                        ? Colors.black
+                                        : Colors.white,
                                     letterSpacing: 1.1,
                                   ),
                                 ),
@@ -522,7 +592,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                   Get.snackbar(
                                     "Information",
                                     "Please contact administrator to retrieve account details.",
-                                    backgroundColor: Theme.of(context).colorScheme.primary,
+                                    backgroundColor:
+                                        Theme.of(context).colorScheme.primary,
                                     colorText: Colors.white,
                                   );
                                 },
@@ -546,9 +617,11 @@ class _LoginScreenState extends State<LoginScreen> {
                                 label:
                                     const Text('FINGERPRINT SENSOR DIAGNOSTIC'),
                                 style: OutlinedButton.styleFrom(
-                                  foregroundColor: Theme.of(context).primaryColor,
+                                  foregroundColor:
+                                      Theme.of(context).primaryColor,
                                   side: BorderSide(
-                                      color: Theme.of(context).primaryColor, width: 1.2),
+                                      color: Theme.of(context).primaryColor,
+                                      width: 1.2),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(8),
                                   ),

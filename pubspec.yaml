@@ -15,24 +15,15 @@ dependencies:
   google_fonts: ^6.2.1
 
   # Dependencies copied from old app
-  app_settings: ^7.0.0
   device_apps: ^2.2.0
-  device_info_plus: ^11.3.0
   flutter_image_compress: ^2.4.0
-  flutter_usb: ^0.0.4
-  fluttertoast: ^9.0.0
-  google_mlkit_text_recognition: ^0.15.0
   image_picker: ^1.1.2
   local_auth: ^2.3.0
-  mantra_biometric: ^0.0.4
   path_provider: ^2.1.5
   permission_handler: ^12.0.3
   shared_preferences: ^2.3.2
   sqflite: ^2.4.1
-  url_launcher: ^6.3.1
-  usb_serial: ^0.5.2
 
-  animated_notch_bottom_bar: any
   get: any
   hive: ^2.2.3
   hive_flutter: ^1.1.0
@@ -41,16 +32,23 @@ dependencies:
   image: any
   intl: any
   path: any
-  provider: any
-  xml: any
+  flutter_local_notifications: ^17.2.4
+  connectivity_plus: ^6.1.0
+  socket_io_client: ^2.0.3+1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
 
   flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.4
 
 flutter:
   uses-material-design: true
   assets:
     - assets/images/
+flutter_launcher_icons:
+  android: "ic_launcher"
+  ios: true
+  image_path: "assets/images/app_logo.png"
+

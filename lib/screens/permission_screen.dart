@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:local_auth/local_auth.dart';
 import 'package:get/get.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'dart:async';
 import '../utils/app_theme.dart';
 import 'login_screen.dart';
+import 'finger_test_screen.dart';
 
 class PermissionScreen extends StatefulWidget {
   const PermissionScreen({super.key});
@@ -24,7 +26,7 @@ class _PermissionScreenState extends State<PermissionScreen>
   String _detectedDeviceName = "No scanner detected";
   bool _isLoading = true;
 
-  final LocalAuthentication _auth = LocalAuthentication();
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
   static const _platform =
       MethodChannel('com.example.exam_shadule_new/rd_service');
 
@@ -33,10 +35,29 @@ class _PermissionScreenState extends State<PermissionScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _checkAllPermissions();
+    _initLiveInternetCheck();
+  }
+
+  void _initLiveInternetCheck() {
+    _connectivitySubscription = Connectivity()
+        .onConnectivityChanged
+        .listen((List<ConnectivityResult> results) async {
+      bool isConnected = results.contains(ConnectivityResult.mobile) ||
+          results.contains(ConnectivityResult.wifi) ||
+          results.contains(ConnectivityResult.ethernet) ||
+          results.contains(ConnectivityResult.vpn);
+
+      if (mounted) {
+        setState(() {
+          _internetGranted = isConnected;
+        });
+      }
+    });
   }
 
   @override
   void dispose() {
+    _connectivitySubscription?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -56,41 +77,31 @@ class _PermissionScreenState extends State<PermissionScreen>
     // 1. Camera check
     final cameraStatus = await Permission.camera.status;
 
-    // 2. Biometric check
-    bool biometricOk = false;
-    try {
-      final bool isSupported = await _auth.isDeviceSupported();
-      final bool canCheck = await _auth.canCheckBiometrics;
-
-      // If hardware supports biometrics
-      if (isSupported && canCheck) {
-        final List<BiometricType> enrolled =
-            await _auth.getAvailableBiometrics();
-        if (enrolled.isNotEmpty) {
-          biometricOk = true;
-        }
-      } else {
-        // If device has no hardware support or mock environment, let it pass
-        biometricOk = true;
-      }
-    } catch (e) {
-      debugPrint("Biometric check error: $e");
-      // Allow passing if there is an initialization error or hardware absent
-      biometricOk = true;
-    }
-
-    // 3. Internet check
+    // 2. Internet check (Phone Net or WiFi)
     bool internetOk = false;
     try {
-      final result = await InternetAddress.lookup('google.com');
-      if (result.isNotEmpty && result[0].rawAddress.isNotEmpty) {
+      final connectivityResults = await Connectivity().checkConnectivity();
+      if (connectivityResults.contains(ConnectivityResult.mobile) ||
+          connectivityResults.contains(ConnectivityResult.wifi) ||
+          connectivityResults.contains(ConnectivityResult.ethernet) ||
+          connectivityResults.contains(ConnectivityResult.vpn)) {
         internetOk = true;
       }
-    } catch (_) {
-      internetOk = false;
+    } catch (_) {}
+
+    if (!internetOk) {
+      try {
+        final result = await InternetAddress.lookup('google.com')
+            .timeout(const Duration(seconds: 2));
+        if (result.isNotEmpty && result[0].rawAddress.isNotEmpty) {
+          internetOk = true;
+        }
+      } catch (_) {
+        internetOk = false;
+      }
     }
 
-    // 4. USB Biometric Device check
+    // 3. USB Biometric Device check (SecuGen)
     bool deviceOk = false;
     String devName = "No scanner detected";
     try {
@@ -115,7 +126,6 @@ class _PermissionScreenState extends State<PermissionScreen>
           }
         }
       } else {
-        // Mock connected on iOS/Simulator for development
         deviceOk = true;
         devName = "Biometric Simulator (iOS)";
       }
@@ -127,7 +137,7 @@ class _PermissionScreenState extends State<PermissionScreen>
 
     setState(() {
       _cameraGranted = cameraStatus.isGranted;
-      _biometricGranted = biometricOk;
+      _biometricGranted = deviceOk;
       _internetGranted = internetOk;
       _deviceConnected = deviceOk;
       _detectedDeviceName = devName;
@@ -152,63 +162,24 @@ class _PermissionScreenState extends State<PermissionScreen>
   }
 
   Future<void> _requestBiometrics() async {
-    try {
-      final bool isSupported = await _auth.isDeviceSupported();
-      final bool canCheck = await _auth.canCheckBiometrics;
-
-      if (!isSupported || !canCheck) {
-        setState(() {
-          _biometricGranted = true;
-        });
-        Get.snackbar(
-          "Biometrics",
-          "Biometric hardware not detected or not supported on this device. Bypassing requirement.",
-          backgroundColor: Colors.orange,
-          colorText: Colors.white,
-          snackPosition: SnackPosition.BOTTOM,
-        );
-        return;
-      }
-
-      final List<BiometricType> enrolled = await _auth.getAvailableBiometrics();
-      if (enrolled.isEmpty) {
-        Get.snackbar(
-          "Biometrics",
-          "No biometrics registered. Please register fingerprint or face in device settings.",
-          backgroundColor: Colors.orange,
-          colorText: Colors.white,
-          snackPosition: SnackPosition.BOTTOM,
-        );
-        return;
-      }
-
-      final bool authenticated = await _auth.authenticate(
-        localizedReason:
-            'Scan fingerprint or face to verify secure biometric status',
-        options: const AuthenticationOptions(
-          stickyAuth: true,
-          biometricOnly: true,
-        ),
+    await _checkAllPermissions();
+    if (_deviceConnected) {
+      Get.snackbar(
+        "SecuGen Biometric Connected",
+        "SecuGen biometric scanner detected via USB ($_detectedDeviceName).",
+        backgroundColor: const Color(0xFF10B981),
+        colorText: Colors.white,
+        snackPosition: SnackPosition.BOTTOM,
       );
-
-      setState(() {
-        _biometricGranted = authenticated;
-      });
-
-      if (authenticated) {
-        Get.snackbar(
-          "Biometrics Authenticated",
-          "Secure biometric link established.",
-          backgroundColor: const Color(0xFF10B981),
-          colorText: Colors.white,
-          snackPosition: SnackPosition.BOTTOM,
-        );
-      }
-    } catch (e) {
-      debugPrint("Biometric auth error: $e");
-      setState(() {
-        _biometricGranted = true; // Fallback
-      });
+      Get.to(() => const FingerTestScreen());
+    } else {
+      Get.snackbar(
+        "SecuGen Scanner Required",
+        "Please connect SecuGen fingerprint scanner via USB OTG cable.",
+        backgroundColor: Colors.orange,
+        colorText: Colors.white,
+        snackPosition: SnackPosition.BOTTOM,
+      );
     }
   }
 
@@ -235,9 +206,7 @@ class _PermissionScreenState extends State<PermissionScreen>
 
   bool get _allPermissionsGranted =>
       _cameraGranted &&
-      _biometricGranted &&
-      _internetGranted &&
-      _deviceConnected;
+      _internetGranted;
 
   @override
   Widget build(BuildContext context) {
@@ -342,19 +311,20 @@ class _PermissionScreenState extends State<PermissionScreen>
                           ),
                           const SizedBox(height: 16),
                           _buildPermissionItem(
-                            title: 'Biometric Sensor',
-                            subtitle:
-                                'Required for operator authentication & logging',
+                            title: 'SecuGen Biometric Sensor (Optional)',
+                            subtitle: _biometricGranted
+                                ? 'Connected: $_detectedDeviceName'
+                                : 'Optional for login: Test HU20 scanner USB connection',
                             icon: Icons.fingerprint,
                             isGranted: _biometricGranted,
                             onGrant: _requestBiometrics,
-                            buttonText: 'Authorize',
+                            buttonText: 'Test USB',
                           ),
                           const SizedBox(height: 16),
                           _buildPermissionItem(
                             title: 'Secure Internet Link',
                             subtitle:
-                                'Required to sync exam sessions & databases',
+                                'Active via Mobile Data or Wi-Fi connection',
                             icon: Icons.wifi,
                             isGranted: _internetGranted,
                             onGrant: _requestInternet,
@@ -362,10 +332,10 @@ class _PermissionScreenState extends State<PermissionScreen>
                           ),
                           const SizedBox(height: 16),
                           _buildPermissionItem(
-                            title: 'Biometric USB Device',
+                            title: 'USB OTG Connection (Optional)',
                             subtitle: _deviceConnected
                                 ? 'Active: $_detectedDeviceName'
-                                : 'Deactive: Connect HU20 scanner via USB OTG',
+                                : 'Optional for login: Connect HU20 scanner via USB OTG',
                             icon: Icons.usb,
                             isGranted: _deviceConnected,
                             onGrant: _checkAllPermissions,

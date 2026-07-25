@@ -269,6 +269,7 @@ class _OperatorProfileScreenState extends State<OperatorProfileScreen> {
                                 _buildInputField(
                                     icon: Icons.phone,
                                     label: "Mobile Number",
+                                    maxLength: 10,
                                     controller: _profileController.mobileController,
                                     keyboardType: TextInputType.phone),
                                 const SizedBox(height: 16),
@@ -393,6 +394,7 @@ class _OperatorProfileScreenState extends State<OperatorProfileScreen> {
       {required IconData icon,
       required String label,
       required TextEditingController controller,
+        int?maxLength,
       TextInputType keyboardType = TextInputType.text}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -407,6 +409,8 @@ class _OperatorProfileScreenState extends State<OperatorProfileScreen> {
           controller: controller,
           keyboardType: keyboardType,
           style: GoogleFonts.outfit(fontSize: 14),
+          maxLength: maxLength,
+
           decoration: InputDecoration(
             prefixIcon: Icon(icon, size: 20, color: Theme.of(context).primaryColor),
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),

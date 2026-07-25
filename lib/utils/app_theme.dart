@@ -7,11 +7,11 @@ class AppTheme {
   static const Color backgroundLight = Color(0xFFF8FAFC);
   static const Color textDark = Color(0xFF1E293B);
   static const Color textMuted = Color(0xFF64748B);
-  
+
   // Dark Blue (Cyber) Theme Colors
   static const Color backgroundDark = Color(0xFF0F172A); // Deep Navy
-  static const Color surfaceDark = Color(0xFF1E293B);    // Blue-Grey Surface
-  static const Color primaryNeon = Color(0xFF38BDF8);   // Cyan/Light Blue
+  static const Color surfaceDark = Color(0xFF1E293B); // Blue-Grey Surface
+  static const Color primaryNeon = Color(0xFF38BDF8); // Cyan/Light Blue
   static const Color textLight = Color(0xFFF1F5F9);
 
   // Status Colors

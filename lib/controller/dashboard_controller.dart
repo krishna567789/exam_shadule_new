@@ -5,12 +5,21 @@ import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:async';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import '../services/notification_service.dart';
 
 class DashboardController extends GetxController {
   final RxBool isLoading = false.obs;
   final RxString centerName = ''.obs;
   final RxString centerCode = ''.obs;
   final RxString examName = ''.obs;
+  final RxString operatorName = ''.obs;
+  final RxString operatorPhone = ''.obs;
+  final RxString operatorEmail = ''.obs;
+  final RxString operatorCityState = ''.obs;
+  final RxString fatherName = ''.obs;
+  final RxString centerCapacity = ''.obs;
 
   // New observables for v1/dashboard
   final RxInt totalCandidates = 0.obs;
@@ -18,11 +27,32 @@ class DashboardController extends GetxController {
   final RxInt absentCandidates = 0.obs;
   final RxInt syncedCount = 0.obs;
 
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
+  bool _isBackgroundSyncRunning = false;
+
   @override
   void onInit() {
     super.onInit();
     getStoredData();
     fetchDashboardStats(); // Fetch from server
+    _initConnectivityListener();
+  }
+
+  void _initConnectivityListener() {
+    _connectivitySubscription = Connectivity().onConnectivityChanged.listen((List<ConnectivityResult> results) {
+      if (results.contains(ConnectivityResult.mobile) || results.contains(ConnectivityResult.wifi)) {
+        if (!_isBackgroundSyncRunning) {
+          print("Internet restored. Auto-syncing pending data...");
+          backgroundSync();
+        }
+      }
+    });
+  }
+
+  @override
+  void onClose() {
+    _connectivitySubscription?.cancel();
+    super.onClose();
   }
 
   Future<void> fetchDashboardStats() async {
@@ -61,6 +91,13 @@ class DashboardController extends GetxController {
     centerCode.value = prefs.getString('center_code') ?? 'No Code Found';
     centerName.value = prefs.getString('center_name') ?? 'No Name Found';
     examName.value = prefs.getString('exam_name') ?? '';
+    operatorName.value = prefs.getString('operator_name') ?? 'N/A';
+    operatorPhone.value = prefs.getString('operator_phone') ?? 'N/A';
+    operatorEmail.value = prefs.getString('operator_email') ?? 'N/A';
+    operatorCityState.value = prefs.getString('operator_city_state') ?? 'N/A';
+    fatherName.value = prefs.getString('father_name') ?? 'N/A';
+    int? capacity = prefs.getInt('center_capacity');
+    centerCapacity.value = capacity != null ? capacity.toString() : 'N/A';
   }
 
   String _formatBase64Size(String base64String) {
@@ -69,6 +106,113 @@ class DashboardController extends GetxController {
     double sizeInBytes = base64String.length * (3 / 4);
     double sizeInKb = sizeInBytes / 1024;
     return "${sizeInKb.toStringAsFixed(2)} KB";
+  }
+
+  String _cleanBase64(dynamic raw) {
+    if (raw == null) return "";
+    String str = raw.toString().trim();
+    if (str.isEmpty) return "";
+    if (str.contains(',')) {
+      return str.split(',').last.trim();
+    }
+    return str;
+  }
+
+  // Ensure NotificationService is imported (wait, we need to add import at the top of the file)
+  Future<void> backgroundSync() async {
+    try {
+      var box = Hive.box('candidates_box');
+      final List allIndices = [];
+      final List<Map<String, dynamic>> presentCandidates = [];
+      
+      for (int i = 0; i < box.length; i++) {
+        var item = Map<String, dynamic>.from(box.getAt(i) as Map);
+        if (item['attendanceStatus'] == true && item['syncStatus'] != true) {
+          presentCandidates.add(item);
+          allIndices.add(i);
+        }
+      }
+
+      if (presentCandidates.isEmpty) return;
+
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      String? token = prefs.getString('token');
+      String? operatorId = prefs.getString('operator_id_db');
+      String? examId = prefs.getString('exam_id');
+      String? shiftId = prefs.getString('shift_id');
+      String? centerId = prefs.getString('center_id');
+
+      for (int i = 0; i < presentCandidates.length; i++) {
+        int percentage = ((i) / presentCandidates.length * 100).toInt();
+        await NotificationService().showProgressNotification(i, presentCandidates.length, percentage);
+
+        var student = presentCandidates[i];
+        int hiveIndex = allIndices[i];
+
+        Map<String, dynamic> payload = {
+          "attendance_data": [
+            {
+              "studentId": student['id'] ?? student['_id'],
+              "applicationId": student['applicationId'] ?? "",
+              "rollno": student['rollNo'] ?? student['rollno'] ?? "",
+              "name": student['name'] ?? "",
+              "fatherName": student['fatherName'] ?? "",
+              "motherName": student['motherName'] ?? "",
+              "email": student['email'] ?? "",
+              "mobile": student['mobile'] ?? "",
+              "address": student['address'] ?? "",
+              "examId": student['examId'] ?? examId ?? "",
+              "examName": student['examName'] ?? student['exam_name'] ?? examName.value,
+              "shiftId": student['shiftId'] ?? shiftId ?? "",
+              "shiftName": student['shiftName'] ?? "",
+              "shiftStart": student['shiftStart'] ?? "",
+              "shiftEnd": student['shiftEnd'] ?? "",
+              "centerId": student['centerId'] ?? centerId ?? "",
+              "centerName": student['centerName'] ?? centerName.value,
+              "centerCode": student['centerCode'] ?? centerCode.value,
+              "centerState": student['centerState'] ?? "",
+              "centerDistrict": student['centerDistrict'] ?? "",
+              "photo": _cleanBase64(student['livePhotoBase64']),
+              "rightThumbnail": _cleanBase64(student['rightThumbBase64']),
+              "leftThumbnail": _cleanBase64(student['leftThumbBase64']),
+              "biometricTemplate": student['biometricTemplate'] ?? "",
+              "attendanceTime": student['attendanceTime'] ?? DateTime.now().toIso8601String(),
+              "biometricTime": student['biometricTime'] ?? DateTime.now().toIso8601String(),
+              "operatorId": operatorId ?? ""
+            }
+          ]
+        };
+
+        try {
+          final response = await http.post(
+            Uri.parse('https://bio.ubroapi.space/api/attendance-reports/bulk'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+            body: json.encode(payload),
+          );
+          
+          if (response.statusCode == 200 || response.statusCode == 201) {
+            student['syncStatus'] = true;
+            student['syncFailed'] = false;
+            await box.putAt(hiveIndex, student);
+          } else {
+            student['syncFailed'] = true;
+            await box.putAt(hiveIndex, student);
+          }
+        } catch (e) {
+          student['syncFailed'] = true;
+          await box.putAt(hiveIndex, student);
+          print("Background sync error for ${student['name']}: $e");
+        }
+      }
+
+      await NotificationService().showSuccessNotification();
+      fetchDashboardStats();
+    } catch (e) {
+      print("Background sync failed: $e");
+    }
   }
 
   Future<void> syncAndUploadData() async {
@@ -98,6 +242,9 @@ class DashboardController extends GetxController {
       SharedPreferences prefs = await SharedPreferences.getInstance();
       String? token = prefs.getString('token');
       String? operatorId = prefs.getString('operator_id_db');
+      String? examId = prefs.getString('exam_id');
+      String? shiftId = prefs.getString('shift_id');
+      String? centerId = prefs.getString('center_id');
 
       int successCount = 0;
       int failCount = 0;
@@ -109,9 +256,9 @@ class DashboardController extends GetxController {
         var student = presentCandidates[i];
         int hiveIndex = allIndices[i];
 
-        String livePhoto = student['livePhotoBase64'] ?? "";
-        String rightThumb = student['rightThumbBase64'] ?? "";
-        String leftThumb = student['leftThumbBase64'] ?? "";
+        String livePhoto = _cleanBase64(student['livePhotoBase64']);
+        String rightThumb = _cleanBase64(student['rightThumbBase64']);
+        String leftThumb = _cleanBase64(student['leftThumbBase64']);
 
         print("Syncing student: ${student['name']} (${i + 1}/${presentCandidates.length})");
         print("  - Live Photo Size: ${_formatBase64Size(livePhoto)}");
@@ -130,18 +277,21 @@ class DashboardController extends GetxController {
               "email": student['email'] ?? "",
               "mobile": student['mobile'] ?? "",
               "address": student['address'] ?? "",
+              "examId": student['examId'] ?? examId ?? "",
               "examName": student['examName'] ?? student['exam_name'] ?? examName.value,
+              "shiftId": student['shiftId'] ?? shiftId ?? "",
               "shiftName": student['shiftName'] ?? "",
               "shiftStart": student['shiftStart'] ?? "",
               "shiftEnd": student['shiftEnd'] ?? "",
+              "centerId": student['centerId'] ?? centerId ?? "",
               "centerName": student['centerName'] ?? centerName.value,
               "centerCode": student['centerCode'] ?? centerCode.value,
               "centerState": student['centerState'] ?? "",
               "centerDistrict": student['centerDistrict'] ?? "",
-              "photo": student['livePhotoBase64'] ?? "",
-              "rightThumbnail": student['rightThumbBase64'] ?? "",
-              "leftThumbnail": student['leftThumbBase64'] ?? "",
-              "biometricTemplate": "template_data",
+              "photo": livePhoto,
+              "rightThumbnail": rightThumb,
+              "leftThumbnail": leftThumb,
+              "biometricTemplate": student['biometricTemplate'] ?? "",
               "attendanceTime": student['attendanceTime'] ?? DateTime.now().toIso8601String(),
               "biometricTime": student['biometricTime'] ?? DateTime.now().toIso8601String(),
               "operatorId": operatorId ?? ""

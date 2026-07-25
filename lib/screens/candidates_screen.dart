@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:get/get.dart';
+import 'package:intl/intl.dart';
 import '../controller/download_controller.dart';
 import '../controller/login_controller.dart';
 import '../models/candidate.dart';
@@ -40,6 +41,16 @@ class _CandidatesScreenState extends State<CandidatesScreen> {
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  String _formatTime(String isoString) {
+    if (isoString.isEmpty || isoString == 'N/A') return "--:--";
+    try {
+      DateTime dt = DateTime.parse(isoString).toLocal();
+      return DateFormat('hh:mm a').format(dt);
+    } catch (e) {
+      return isoString;
+    }
   }
 
   void _navigateToEnrollment(Map<String, dynamic> studentData) {
@@ -103,13 +114,12 @@ class _CandidatesScreenState extends State<CandidatesScreen> {
                   border: Border.all(color: Colors.green, width: 2),
                 ),
                 child: ClipOval(
-                  child: (student['livePhotoBase64'] != null && student['livePhotoBase64'].toString().length > 10)
-                      ? Image.memory(
-                          base64Decode(student['livePhotoBase64'].toString().split(',').last),
-                          fit: BoxFit.cover,
-                          errorBuilder: (c, e, s) => const Icon(Icons.broken_image, size: 50),
-                        )
-                      : Container(color: Colors.grey.withOpacity(0.1), child: const Icon(Icons.person, size: 50, color: Colors.grey)),
+                  child: _buildPreviewImage(
+                    base64Data: student['livePhotoBase64'],
+                    urlData: student['livePhoto'],
+                    localPath: student['localLivePhotoPath'],
+                    fallbackIcon: Icons.person,
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
@@ -125,8 +135,8 @@ class _CandidatesScreenState extends State<CandidatesScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  _buildThumbPreview("Left Thumb", student['leftThumbBase64']),
-                  _buildThumbPreview("Right Thumb", student['rightThumbBase64']),
+                  _buildThumbPreview("Left Thumb", student['leftThumbBase64'], student['leftThumb'], student['localLeftThumbPath']),
+                  _buildThumbPreview("Right Thumb", student['rightThumbBase64'], student['rightThumb'], student['localRightThumbPath']),
                 ],
               ),
               const SizedBox(height: 24),
@@ -176,7 +186,7 @@ class _CandidatesScreenState extends State<CandidatesScreen> {
     );
   }
 
-  Widget _buildThumbPreview(String label, dynamic base64Data) {
+  Widget _buildThumbPreview(String label, dynamic base64Data, dynamic urlData, dynamic localPath) {
     return Column(
       children: [
         Text(label, style: GoogleFonts.outfit(fontSize: 10, color: Colors.grey)),
@@ -189,19 +199,61 @@ class _CandidatesScreenState extends State<CandidatesScreen> {
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: Colors.grey.shade300),
           ),
-          child: (base64Data != null && base64Data.toString().length > 10)
-              ? ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.memory(
-                    base64Decode(base64Data.toString().split(',').last),
-                    fit: BoxFit.cover,
-                    errorBuilder: (c, e, s) => const Icon(Icons.broken_image, color: Colors.red, size: 24),
-                  ),
-                )
-              : const Icon(Icons.fingerprint, color: Colors.grey),
+          child: _buildPreviewImage(
+            base64Data: base64Data,
+            urlData: urlData,
+            localPath: localPath,
+            fallbackIcon: Icons.fingerprint,
+            isThumb: true,
+          ),
         ),
       ],
     );
+  }
+
+  Widget _buildPreviewImage({
+    required dynamic base64Data,
+    required dynamic urlData,
+    required dynamic localPath,
+    required IconData fallbackIcon,
+    bool isThumb = false,
+  }) {
+    if (base64Data != null && base64Data.toString().length > 10) {
+      Widget img = Image.memory(
+        base64Decode(base64Data.toString().split(',').last),
+        fit: BoxFit.cover,
+        errorBuilder: (c, e, s) => Icon(Icons.broken_image, color: Colors.red, size: isThumb ? 24 : 50),
+      );
+      return isThumb ? ClipRRect(borderRadius: BorderRadius.circular(8), child: img) : img;
+    }
+    if (localPath != null && localPath.toString().isNotEmpty && File(localPath.toString()).existsSync()) {
+      Widget img = Image.file(
+        File(localPath.toString()),
+        fit: BoxFit.cover,
+        errorBuilder: (c, e, s) => Icon(Icons.broken_image, color: Colors.red, size: isThumb ? 24 : 50),
+      );
+      return isThumb ? ClipRRect(borderRadius: BorderRadius.circular(8), child: img) : img;
+    }
+    if (urlData != null && urlData.toString().startsWith('http')) {
+      Widget img = Image.network(
+        urlData.toString(),
+        fit: BoxFit.cover,
+        errorBuilder: (c, e, s) => Icon(fallbackIcon, color: Colors.grey, size: isThumb ? 24 : 50),
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Center(
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              value: loadingProgress.expectedTotalBytes != null
+                  ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                  : null,
+            ),
+          );
+        },
+      );
+      return isThumb ? ClipRRect(borderRadius: BorderRadius.circular(8), child: img) : img;
+    }
+    return Icon(fallbackIcon, color: Colors.grey, size: isThumb ? 24 : 50);
   }
 
   void _showLogoutDialog() {
@@ -352,16 +404,30 @@ class _CandidatesScreenState extends State<CandidatesScreen> {
                                   const Icon(Icons.access_time, color: Color(0xFF1976D2), size: 14),
                                   const SizedBox(width: 6),
                                   Expanded(
-                                    child: Obx(() => Text(
-                                      _downloadController.shift.value.isNotEmpty
-                                          ? _downloadController.shift.value
-                                          : 'Current Session',
-                                      style: GoogleFonts.outfit(
-                                        color: Theme.of(context).textTheme.bodyMedium?.color,
-                                        fontSize: 12,
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
-                                    )),
+                                     child: Obx(() {
+                                       if (_downloadController.shiftStart.value.isNotEmpty && 
+                                           _downloadController.shiftEnd.value.isNotEmpty && 
+                                           _downloadController.shiftStart.value != 'N/A') {
+                                         return Text(
+                                           '${_formatTime(_downloadController.shiftStart.value)} - ${_formatTime(_downloadController.shiftEnd.value)}',
+                                           style: GoogleFonts.outfit(
+                                             color: Theme.of(context).textTheme.bodyMedium?.color,
+                                             fontSize: 12,
+                                           ),
+                                           overflow: TextOverflow.ellipsis,
+                                         );
+                                       }
+                                       return Text(
+                                          _downloadController.shift.value.isNotEmpty && _downloadController.shift.value != 'N/A'
+                                              ? _downloadController.shift.value
+                                              : 'Current Session',
+                                          style: GoogleFonts.outfit(
+                                            color: Theme.of(context).textTheme.bodyMedium?.color,
+                                            fontSize: 12,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                       );
+                                     }),
                                   ),
                                 ],
                               ),
@@ -627,16 +693,26 @@ class _CandidatesScreenState extends State<CandidatesScreen> {
                                           : const Color(0xFF10B981).withOpacity(0.4),
                                     ),
                                   ),
-                                  child: Text(
-                                    !isPresent ? 'ABSENT' : 'PRESENT',
-                                    style: GoogleFonts.outfit(
-                                      color: !isPresent
-                                          ? const Color(0xFFEF4444)
-                                          : const Color(0xFF10B981),
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 1.0,
-                                    ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (isPresent && student['syncFailed'] == true)
+                                        const Padding(
+                                          padding: EdgeInsets.only(right: 4.0),
+                                          child: Icon(Icons.sync_problem, color: Colors.red, size: 14),
+                                        ),
+                                      Text(
+                                        !isPresent ? 'ABSENT' : 'PRESENT',
+                                        style: GoogleFonts.outfit(
+                                          color: !isPresent
+                                              ? const Color(0xFFEF4444)
+                                              : const Color(0xFF10B981),
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                          letterSpacing: 1.0,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ],

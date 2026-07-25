@@ -11,6 +11,7 @@ android {
     ndkVersion = "27.0.12077973"
 
     compileOptions {
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -31,10 +32,14 @@ android {
 
     buildTypes {
         release {
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = signingConfigs.getByName("debug")
         }
     }
+
+    // Removed packaging { jniLibs { keepDebugSymbols... } } to allow stripping of debug symbols
 }
 
 flutter {
@@ -44,4 +49,5 @@ flutter {
 dependencies {
     // SecuGen FDx SDK — libs/ folder mein .aar file rakhne ke baad automatically load hoga
     implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar", "*.aar"))))
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }

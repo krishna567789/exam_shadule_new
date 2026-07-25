@@ -6,25 +6,28 @@ import 'screens/login_screen.dart';
 import 'screens/session_setup_screen.dart';
 import 'utils/app_theme.dart';
 
+import 'services/notification_service.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await NotificationService().init();
   await Hive.initFlutter();
   await Hive.openBox('candidates_box');
   
   SharedPreferences prefs = await SharedPreferences.getInstance();
   bool isLoggedIn = prefs.getBool('is_logged_in') ?? false;
 
-  runApp(BioSecureApp(isLoggedIn: isLoggedIn));
+  runApp(SecureExamApp(isLoggedIn: isLoggedIn));
 }
 
-class BioSecureApp extends StatelessWidget {
+class SecureExamApp extends StatelessWidget {
   final bool isLoggedIn;
-  const BioSecureApp({super.key, required this.isLoggedIn});
+  const SecureExamApp({super.key, required this.isLoggedIn});
 
   @override
   Widget build(BuildContext context) {
     return GetMaterialApp(
-      title: 'BioSecure Operator Console',
+      title: 'Secure Exam Operator Console',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,

@@ -17,8 +17,9 @@ class SessionSetupScreen extends StatefulWidget {
 
 class _SessionSetupScreenState extends State<SessionSetupScreen> {
   final DownloadController _downloadController = Get.put(DownloadController());
-  final DashboardController _dashboardController = Get.put(DashboardController());
-  final LoginController _loginController = Get.find<LoginController>();
+  final DashboardController _dashboardController =
+      Get.put(DashboardController());
+  final LoginController _loginController = Get.put(LoginController());
 
   @override
   void initState() {
@@ -54,8 +55,8 @@ class _SessionSetupScreenState extends State<SessionSetupScreen> {
   @override
   Widget build(BuildContext context) {
     const Color cyberBlue = Color(0xFF2196F3);
-    final Color textMuted = Theme.of(context).brightness == Brightness.light 
-        ? const Color(0xFF64748B) 
+    final Color textMuted = Theme.of(context).brightness == Brightness.light
+        ? const Color(0xFF64748B)
         : Colors.white70;
 
     return Scaffold(
@@ -63,7 +64,8 @@ class _SessionSetupScreenState extends State<SessionSetupScreen> {
       body: SafeArea(
         child: SingleChildScrollView(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -89,7 +91,9 @@ class _SessionSetupScreenState extends State<SessionSetupScreen> {
                       ),
                       onPressed: () {
                         Get.changeTheme(
-                          Get.isDarkMode ? AppTheme.lightTheme : AppTheme.darkTheme,
+                          Get.isDarkMode
+                              ? AppTheme.lightTheme
+                              : AppTheme.darkTheme,
                         );
                       },
                     ),
@@ -103,8 +107,12 @@ class _SessionSetupScreenState extends State<SessionSetupScreen> {
                         : 'Confirm center details and sync data before proceeding.',
                     style: GoogleFonts.outfit(
                       fontSize: 14,
-                      color: _dashboardController.examName.value.isNotEmpty ? Colors.blue.shade800 : textMuted,
-                      fontWeight: _dashboardController.examName.value.isNotEmpty ? FontWeight.bold : FontWeight.normal,
+                      color: _dashboardController.examName.value.isNotEmpty
+                          ? Colors.blue.shade800
+                          : textMuted,
+                      fontWeight: _dashboardController.examName.value.isNotEmpty
+                          ? FontWeight.bold
+                          : FontWeight.normal,
                       letterSpacing: 1.0,
                     ),
                   ),
@@ -147,13 +155,17 @@ class _SessionSetupScreenState extends State<SessionSetupScreen> {
                                 const SizedBox(height: 2),
                                 Obx(
                                   () => Text(
-                                    _dashboardController.centerCode.value.isNotEmpty
+                                    _dashboardController
+                                            .centerCode.value.isNotEmpty
                                         ? _dashboardController.centerCode.value
                                         : 'N/A',
                                     style: GoogleFonts.outfit(
                                       fontSize: 16,
                                       fontWeight: FontWeight.bold,
-                                      color: Theme.of(context).textTheme.bodyLarge?.color,
+                                      color: Theme.of(context)
+                                          .textTheme
+                                          .bodyLarge
+                                          ?.color,
                                     ),
                                     overflow: TextOverflow.ellipsis,
                                   ),
@@ -219,26 +231,35 @@ class _SessionSetupScreenState extends State<SessionSetupScreen> {
                                     Expanded(
                                       child: Obx(
                                         () {
-                                          if (_downloadController.shiftStart.value.isNotEmpty &&
-                                              _downloadController.shiftEnd.value.isNotEmpty) {
+                                          if (_downloadController.shiftStart
+                                                  .value.isNotEmpty &&
+                                              _downloadController
+                                                  .shiftEnd.value.isNotEmpty) {
                                             return Text(
                                               '${_formatTime(_downloadController.shiftStart.value)} - ${_formatTime(_downloadController.shiftEnd.value)}',
                                               style: GoogleFonts.outfit(
                                                 fontSize: 13,
                                                 fontWeight: FontWeight.w600,
-                                                color: Theme.of(context).textTheme.bodyMedium?.color,
+                                                color: Theme.of(context)
+                                                    .textTheme
+                                                    .bodyMedium
+                                                    ?.color,
                                               ),
                                               overflow: TextOverflow.ellipsis,
                                             );
                                           }
                                           return Text(
-                                            _downloadController.shift.value.isNotEmpty
+                                            _downloadController
+                                                    .shift.value.isNotEmpty
                                                 ? '${_downloadController.shift.value} (${_downloadController.timing.value})'
                                                 : 'Current Session',
                                             style: GoogleFonts.outfit(
                                               fontSize: 13,
                                               fontWeight: FontWeight.w600,
-                                              color: Theme.of(context).textTheme.bodyMedium?.color,
+                                              color: Theme.of(context)
+                                                  .textTheme
+                                                  .bodyMedium
+                                                  ?.color,
                                             ),
                                             overflow: TextOverflow.ellipsis,
                                           );
@@ -276,6 +297,52 @@ class _SessionSetupScreenState extends State<SessionSetupScreen> {
                           ),
                         ],
                       ),
+                      const SizedBox(height: 12),
+                      Container(
+                        height: 1,
+                        width: double.infinity,
+                        color: Theme.of(context).dividerColor.withOpacity(0.2),
+                      ),
+                      const SizedBox(height: 12),
+                      // Row(
+                      //   mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      //   children: [
+                      //     Column(
+                      //       crossAxisAlignment: CrossAxisAlignment.start,
+                      //       children: [
+                      //         Text(
+                      //           'CAPACITY',
+                      //           style: GoogleFonts.outfit(
+                      //             fontSize: 10,
+                      //             color: textMuted,
+                      //             fontWeight: FontWeight.bold,
+                      //           ),
+                      //         ),
+                      //         const SizedBox(height: 4),
+                      //         Row(
+                      //           children: [
+                      //             const Icon(
+                      //               Icons.people_alt_outlined,
+                      //               size: 14,
+                      //               color: Color(0xFF1976D2),
+                      //             ),
+                      //             const SizedBox(width: 6),
+                      //             Obx(
+                      //               () => Text(
+                      //                 _dashboardController.centerCapacity.value,
+                      //                 style: GoogleFonts.outfit(
+                      //                   fontSize: 14,
+                      //                   fontWeight: FontWeight.bold,
+                      //                   color: Theme.of(context).textTheme.bodyMedium?.color,
+                      //                 ),
+                      //               ),
+                      //             ),
+                      //           ],
+                      //         ),
+                      //       ],
+                      //     ),
+                      //   ],
+                      // ),
                     ],
                   ),
                 ),
@@ -294,7 +361,8 @@ class _SessionSetupScreenState extends State<SessionSetupScreen> {
                             style: GoogleFonts.outfit(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
-                              color: Theme.of(context).textTheme.bodyLarge?.color,
+                              color:
+                                  Theme.of(context).textTheme.bodyLarge?.color,
                               letterSpacing: 1.0,
                             ),
                           ),
@@ -334,7 +402,7 @@ class _SessionSetupScreenState extends State<SessionSetupScreen> {
                                   ),
                                   const SizedBox(height: 8),
                                   Text(
-                                    'Downloading data... ${( _downloadController.downloadProgress.value * 100).toStringAsFixed(0)}%',
+                                    'Downloading data... ${(_downloadController.downloadProgress.value * 100).toStringAsFixed(0)}%',
                                     style: GoogleFonts.outfit(
                                       fontSize: 12,
                                       fontWeight: FontWeight.bold,
@@ -350,7 +418,10 @@ class _SessionSetupScreenState extends State<SessionSetupScreen> {
                                     decoration: BoxDecoration(
                                       borderRadius: BorderRadius.circular(8),
                                       gradient: const LinearGradient(
-                                        colors: [Color(0xFF0D47A1), Color(0xFF1E88E5)],
+                                        colors: [
+                                          Color(0xFF0D47A1),
+                                          Color(0xFF1E88E5)
+                                        ],
                                       ),
                                     ),
                                     child: ElevatedButton.icon(
@@ -376,7 +447,8 @@ class _SessionSetupScreenState extends State<SessionSetupScreen> {
                                     ),
                                   )
                                 : Container(
-                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 12),
                                     decoration: BoxDecoration(
                                       color: const Color(0xFFE8F5E9),
                                       borderRadius: BorderRadius.circular(8),
@@ -385,7 +457,8 @@ class _SessionSetupScreenState extends State<SessionSetupScreen> {
                                       ),
                                     ),
                                     child: Row(
-                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
                                       children: [
                                         const Icon(
                                           Icons.check,
@@ -417,12 +490,18 @@ class _SessionSetupScreenState extends State<SessionSetupScreen> {
                     height: 44,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(8),
-                      gradient: _downloadController.totalStudents.value > 0 
-                        ? const LinearGradient(colors: [Color(0xFF1976D2), Color(0xFF2196F3)])
-                        : LinearGradient(colors: [Colors.grey.shade400, Colors.grey.shade500]),
+                      gradient: _downloadController.totalStudents.value > 0
+                          ? const LinearGradient(
+                              colors: [Color(0xFF1976D2), Color(0xFF2196F3)])
+                          : LinearGradient(colors: [
+                              Colors.grey.shade400,
+                              Colors.grey.shade500
+                            ]),
                     ),
                     child: ElevatedButton(
-                      onPressed: _downloadController.totalStudents.value > 0 ? _handleContinue : null,
+                      onPressed: _downloadController.totalStudents.value > 0
+                          ? _handleContinue
+                          : null,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.transparent,
                         shadowColor: Colors.transparent,

@@ -186,6 +186,7 @@ class UserProfileController extends GetxController {
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         await prefs.setBool('is_profile_completed', true);
+        await prefs.setBool('is_logged_in', true); // SET LOGGED IN STATUS AFTER PROFILE CREATION
         await prefs.setString('operator_name', nameController.text.trim());
         await prefs.setString('father_name', fatherController.text.trim());
         await prefs.setString('operator_phone', mobileController.text.trim());

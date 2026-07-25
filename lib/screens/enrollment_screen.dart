@@ -9,6 +9,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../models/candidate.dart';
 import 'package:get/get.dart';
 import '../controller/device_info_controller.dart';
+import '../controller/dashboard_controller.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 
 class BiometricEnrollmentScreen extends StatefulWidget {
@@ -34,6 +35,28 @@ class _BiometricEnrollmentScreenState extends State<BiometricEnrollmentScreen> {
   void initState() {
     super.initState();
     _loadExistingData();
+    _handleLostData();
+  }
+
+  Future<void> _handleLostData() async {
+    if (!Platform.isAndroid) return;
+    try {
+      final ImagePicker picker = ImagePicker();
+      final LostDataResponse response = await picker.retrieveLostData();
+      if (response.isEmpty) return;
+      if (response.file != null) {
+        final Uint8List bytes = await response.file!.readAsBytes();
+        final Uint8List? compressed = await _compressBytes(bytes);
+        if (mounted) {
+          setState(() {
+            _livePhotoImage = compressed;
+            _livePhotoCaptured = true;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("Error retrieving lost data: $e");
+    }
   }
 
   void _loadExistingData() {
@@ -47,16 +70,33 @@ class _BiometricEnrollmentScreenState extends State<BiometricEnrollmentScreen> {
               String base64 = item['livePhotoBase64'].toString().split(',').last;
               _livePhotoImage = base64Decode(base64);
               _livePhotoCaptured = true;
+            } else if (item['localLivePhotoPath'] != null && File(item['localLivePhotoPath']).existsSync()) {
+              _livePhotoImage = File(item['localLivePhotoPath']).readAsBytesSync();
+              _livePhotoCaptured = true;
+            } else if (item['livePhoto'] != null && item['livePhoto'].toString().startsWith('http')) {
+              _fetchAndSetBytes(item['livePhoto'].toString(), 'live');
             }
+
             if (item['leftThumbBase64'] != null) {
               String base64 = item['leftThumbBase64'].toString().split(',').last;
               _leftThumbImage = base64Decode(base64);
               _leftThumbScanned = true;
+            } else if (item['localLeftThumbPath'] != null && File(item['localLeftThumbPath']).existsSync()) {
+              _leftThumbImage = File(item['localLeftThumbPath']).readAsBytesSync();
+              _leftThumbScanned = true;
+            } else if (item['leftThumb'] != null && item['leftThumb'].toString().startsWith('http')) {
+              _fetchAndSetBytes(item['leftThumb'].toString(), 'left');
             }
+
             if (item['rightThumbBase64'] != null) {
               String base64 = item['rightThumbBase64'].toString().split(',').last;
               _rightThumbImage = base64Decode(base64);
               _rightThumbScanned = true;
+            } else if (item['localRightThumbPath'] != null && File(item['localRightThumbPath']).existsSync()) {
+              _rightThumbImage = File(item['localRightThumbPath']).readAsBytesSync();
+              _rightThumbScanned = true;
+            } else if (item['rightThumb'] != null && item['rightThumb'].toString().startsWith('http')) {
+              _fetchAndSetBytes(item['rightThumb'].toString(), 'right');
             }
           });
           break;
@@ -64,6 +104,33 @@ class _BiometricEnrollmentScreenState extends State<BiometricEnrollmentScreen> {
       }
     } catch (e) {
       debugPrint("Error loading existing data: $e");
+    }
+  }
+
+  Future<void> _fetchAndSetBytes(String url, String type) async {
+    try {
+      final request = await HttpClient().getUrl(Uri.parse(url));
+      final response = await request.close();
+      if (response.statusCode == 200) {
+        final bytes = await response.fold<List<int>>([], (prev, elem) => prev..addAll(elem));
+        final uint8list = Uint8List.fromList(bytes);
+        if (mounted) {
+          setState(() {
+            if (type == 'live') {
+              _livePhotoImage = uint8list;
+              _livePhotoCaptured = true;
+            } else if (type == 'left') {
+              _leftThumbImage = uint8list;
+              _leftThumbScanned = true;
+            } else if (type == 'right') {
+              _rightThumbImage = uint8list;
+              _rightThumbScanned = true;
+            }
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("Error fetching network image: $e");
     }
   }
 
@@ -82,32 +149,42 @@ class _BiometricEnrollmentScreenState extends State<BiometricEnrollmentScreen> {
   }
 
   Future<void> _captureLivePhoto() async {
-    var status = await Permission.camera.status;
-    if (!status.isGranted) {
-      status = await Permission.camera.request();
-      if (!status.isGranted) {
-        Get.snackbar("Permission Denied", "Camera permission required.");
-        return;
-      }
-    }
-
     try {
+      var status = await Permission.camera.status;
+      if (!status.isGranted) {
+        status = await Permission.camera.request();
+        if (!status.isGranted) {
+          Get.snackbar("Permission Denied", "Camera permission required.", 
+              backgroundColor: Colors.red, colorText: Colors.white);
+          return;
+        }
+        // Give the OS a tiny bit of time to settle after permission grant
+        await Future.delayed(const Duration(milliseconds: 300));
+      }
+
       final ImagePicker picker = ImagePicker();
       final XFile? photo = await picker.pickImage(
         source: ImageSource.camera,
         preferredCameraDevice: CameraDevice.front,
-        imageQuality: 50,
+        imageQuality: 50, // Reduced quality for memory safety
+        maxWidth: 1024,   // Cap size for memory safety
+        maxHeight: 1024,
       );
+
       if (photo != null) {
         final Uint8List bytes = await photo.readAsBytes();
         final Uint8List? compressed = await _compressBytes(bytes);
-        setState(() {
-          _livePhotoImage = compressed;
-          _livePhotoCaptured = true;
-        });
+        if (mounted) {
+          setState(() {
+            _livePhotoImage = compressed;
+            _livePhotoCaptured = true;
+          });
+        }
       }
     } catch (e) {
       debugPrint("Error picking photo: $e");
+      Get.snackbar("Error", "Camera failed to initialize. Please try again.", 
+          backgroundColor: Colors.red, colorText: Colors.white);
     }
   }
 
@@ -146,17 +223,28 @@ class _BiometricEnrollmentScreenState extends State<BiometricEnrollmentScreen> {
           studentData['livePhotoBase64'] = "data:image/jpeg;base64,${base64Encode(_livePhotoImage!)}";
         }
         if (_leftThumbImage != null) {
-          final Uint8List? comp = await _compressBytes(_leftThumbImage!);
-          studentData['leftThumbBase64'] = "data:image/jpeg;base64,${base64Encode(comp ?? _leftThumbImage!)}";
+          studentData['leftThumbBase64'] = "data:image/png;base64,${base64Encode(_leftThumbImage!)}";
         }
         if (_rightThumbImage != null) {
-          final Uint8List? comp = await _compressBytes(_rightThumbImage!);
-          studentData['rightThumbBase64'] = "data:image/jpeg;base64,${base64Encode(comp ?? _rightThumbImage!)}";
+          studentData['rightThumbBase64'] = "data:image/png;base64,${base64Encode(_rightThumbImage!)}";
+        }
+        if (_deviceInfoController.fingerprintTemplate != null) {
+          studentData['biometricTemplate'] = base64Encode(_deviceInfoController.fingerprintTemplate!);
         }
 
         await box.putAt(index, studentData);
         Navigator.pop(context);
-        Get.snackbar('Success', 'Attendance recorded locally. Sync when online.', backgroundColor: Colors.green);
+        Get.snackbar('Success', 'Attendance recorded locally. Syncing in background.', backgroundColor: Colors.green);
+        
+        // Trigger background sync
+        try {
+          final DashboardController dashboardController = Get.isRegistered<DashboardController>() 
+              ? Get.find<DashboardController>() 
+              : Get.put(DashboardController());
+          dashboardController.backgroundSync();
+        } catch (e) {
+          print("Error triggering background sync: $e");
+        }
       }
     } catch (e) {
       Get.snackbar('Error', 'Failed to save: $e', backgroundColor: Colors.red);
@@ -359,7 +447,20 @@ class _BiometricEnrollmentScreenState extends State<BiometricEnrollmentScreen> {
     return _buildHudCard(child: Column(children: [
       Text(title, style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14)),
       const SizedBox(height: 12),
-      Container(width: 64, height: 64, decoration: BoxDecoration(color: accent.withOpacity(0.1), shape: BoxShape.circle, image: imageBytes != null ? DecorationImage(image: MemoryImage(imageBytes), fit: BoxFit.cover) : null), child: imageBytes == null ? Icon(isCompleted ? Icons.check : icon, color: accent, size: 24) : null),
+      Container(
+        width: 80, 
+        height: 100, 
+        decoration: BoxDecoration(
+          color: accent.withOpacity(0.1), 
+          borderRadius: BorderRadius.circular(8), 
+          image: imageBytes != null 
+              ? DecorationImage(image: MemoryImage(imageBytes), fit: BoxFit.contain) 
+              : null
+        ), 
+        child: imageBytes == null 
+            ? Icon(isCompleted ? Icons.check : icon, color: accent, size: 32) 
+            : null
+      ),
       const SizedBox(height: 12),
       Text(subtitle, style: GoogleFonts.outfit(fontSize: 10, color: isCompleted ? Colors.green : Theme.of(context).textTheme.bodySmall?.color)),
       const SizedBox(height: 12),

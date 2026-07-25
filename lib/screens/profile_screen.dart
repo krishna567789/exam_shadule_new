@@ -146,7 +146,33 @@ class ProfileScreen extends StatelessWidget {
                       )),
                       const SizedBox(height: 16),
                       _buildInfoRow('SHIFT TIME', 'Dynamic Session'),
+                      const SizedBox(height: 24),
+                      Row(
+                        children: [
+                          const Icon(Icons.person_outline, color: cyberCyan, size: 18),
+                          const SizedBox(width: 8),
+                          Text(
+                            'OPERATOR DETAILS',
+                            style: GoogleFonts.outfit(
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(context).textTheme.titleSmall?.color,
+                              letterSpacing: 1.2,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+                      Obx(() => _buildInfoRow('NAME', _dashboardController.operatorName.value)),
                       const SizedBox(height: 16),
+                      Obx(() => _buildInfoRow('FATHER NAME', _dashboardController.fatherName.value)),
+                      const SizedBox(height: 16),
+                      Obx(() => _buildInfoRow('MOBILE', _dashboardController.operatorPhone.value)),
+                      const SizedBox(height: 16),
+                      Obx(() => _buildInfoRow('EMAIL', _dashboardController.operatorEmail.value)),
+                      const SizedBox(height: 16),
+                      Obx(() => _buildInfoRow('LOCATION', _dashboardController.operatorCityState.value)),
+                      const SizedBox(height: 24),
                       Container(
                         width: double.infinity,
                         padding: const EdgeInsets.all(12),
