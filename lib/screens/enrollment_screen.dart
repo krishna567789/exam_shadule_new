@@ -34,29 +34,8 @@ class _BiometricEnrollmentScreenState extends State<BiometricEnrollmentScreen> {
   @override
   void initState() {
     super.initState();
+    _deviceInfoController.clearBiometricData();
     _loadExistingData();
-    _handleLostData();
-  }
-
-  Future<void> _handleLostData() async {
-    if (!Platform.isAndroid) return;
-    try {
-      final ImagePicker picker = ImagePicker();
-      final LostDataResponse response = await picker.retrieveLostData();
-      if (response.isEmpty) return;
-      if (response.file != null) {
-        final Uint8List bytes = await response.file!.readAsBytes();
-        final Uint8List? compressed = await _compressBytes(bytes);
-        if (mounted) {
-          setState(() {
-            _livePhotoImage = compressed;
-            _livePhotoCaptured = true;
-          });
-        }
-      }
-    } catch (e) {
-      debugPrint("Error retrieving lost data: $e");
-    }
   }
 
   void _loadExistingData() {
@@ -65,6 +44,11 @@ class _BiometricEnrollmentScreenState extends State<BiometricEnrollmentScreen> {
       for (var i = 0; i < box.length; i++) {
         var item = Map<String, dynamic>.from(box.getAt(i) as Map);
         if ((item['id'] ?? item['_id']).toString() == widget.candidate.id) {
+          if (item['biometricData'] != null && item['biometricData'] is Map) {
+            Map<String, dynamic> bData = Map<String, dynamic>.from(item['biometricData']);
+            _deviceInfoController.leftBiometricData.addAll(bData);
+            _deviceInfoController.rightBiometricData.addAll(bData);
+          }
           setState(() {
             if (item['livePhotoBase64'] != null) {
               String base64 = item['livePhotoBase64'].toString().split(',').last;
@@ -149,42 +133,32 @@ class _BiometricEnrollmentScreenState extends State<BiometricEnrollmentScreen> {
   }
 
   Future<void> _captureLivePhoto() async {
-    try {
-      var status = await Permission.camera.status;
+    var status = await Permission.camera.status;
+    if (!status.isGranted) {
+      status = await Permission.camera.request();
       if (!status.isGranted) {
-        status = await Permission.camera.request();
-        if (!status.isGranted) {
-          Get.snackbar("Permission Denied", "Camera permission required.", 
-              backgroundColor: Colors.red, colorText: Colors.white);
-          return;
-        }
-        // Give the OS a tiny bit of time to settle after permission grant
-        await Future.delayed(const Duration(milliseconds: 300));
+        Get.snackbar("Permission Denied", "Camera permission required.");
+        return;
       }
+    }
 
+    try {
       final ImagePicker picker = ImagePicker();
       final XFile? photo = await picker.pickImage(
         source: ImageSource.camera,
         preferredCameraDevice: CameraDevice.front,
-        imageQuality: 50, // Reduced quality for memory safety
-        maxWidth: 1024,   // Cap size for memory safety
-        maxHeight: 1024,
+        imageQuality: 50,
       );
-
       if (photo != null) {
         final Uint8List bytes = await photo.readAsBytes();
         final Uint8List? compressed = await _compressBytes(bytes);
-        if (mounted) {
-          setState(() {
-            _livePhotoImage = compressed;
-            _livePhotoCaptured = true;
-          });
-        }
+        setState(() {
+          _livePhotoImage = compressed;
+          _livePhotoCaptured = true;
+        });
       }
     } catch (e) {
       debugPrint("Error picking photo: $e");
-      Get.snackbar("Error", "Camera failed to initialize. Please try again.", 
-          backgroundColor: Colors.red, colorText: Colors.white);
     }
   }
 
@@ -218,6 +192,7 @@ class _BiometricEnrollmentScreenState extends State<BiometricEnrollmentScreen> {
         studentData['biometricStatus'] = true;
         studentData['biometricTime'] = DateTime.now().toIso8601String();
         studentData['syncStatus'] = false;
+        studentData['syncFailed'] = false;
 
         if (_livePhotoImage != null) {
           studentData['livePhotoBase64'] = "data:image/jpeg;base64,${base64Encode(_livePhotoImage!)}";
@@ -230,6 +205,20 @@ class _BiometricEnrollmentScreenState extends State<BiometricEnrollmentScreen> {
         }
         if (_deviceInfoController.fingerprintTemplate != null) {
           studentData['biometricTemplate'] = base64Encode(_deviceInfoController.fingerprintTemplate!);
+        }
+
+        Map<String, dynamic> fullBiometricData = {};
+        if (studentData['biometricData'] != null && studentData['biometricData'] is Map) {
+          fullBiometricData.addAll(Map<String, dynamic>.from(studentData['biometricData'] as Map));
+        }
+        if (_deviceInfoController.leftBiometricData.isNotEmpty) {
+          fullBiometricData.addAll(_deviceInfoController.leftBiometricData);
+        }
+        if (_deviceInfoController.rightBiometricData.isNotEmpty) {
+          fullBiometricData.addAll(_deviceInfoController.rightBiometricData);
+        }
+        if (fullBiometricData.isNotEmpty) {
+          studentData['biometricData'] = fullBiometricData;
         }
 
         await box.putAt(index, studentData);
@@ -295,8 +284,8 @@ class _BiometricEnrollmentScreenState extends State<BiometricEnrollmentScreen> {
                             ),
                             const SizedBox(width: 16),
                             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              Text('Reference Photo', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14)),
-                              Text('From server', style: GoogleFonts.outfit(fontSize: 11, color: textMuted)),
+                              Text(widget.candidate.name, style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 15)),
+                              Text('Roll No: ${widget.candidate.rollNo} • Reference Photo', style: GoogleFonts.outfit(fontSize: 11, color: textMuted)),
                             ])),
                             IconButton(onPressed: _showFullPhoto, icon: Icon(Icons.fullscreen, color: Theme.of(context).primaryColor)),
                           ],
@@ -326,12 +315,12 @@ class _BiometricEnrollmentScreenState extends State<BiometricEnrollmentScreen> {
                             onCancel: _deviceInfoController.cancelScan,
                             onPressed: _activeScan != null ? null : () async {
                               setState(() => _activeScan = 'left');
-                              bool success = await _deviceInfoController.scanFingerPrint();
+                              bool success = await _deviceInfoController.scanFingerPrint(scanType: 'left');
                               setState(() {
                                 _activeScan = null;
                                 if (success) {
                                   _leftThumbScanned = true;
-                                  _leftThumbImage = _deviceInfoController.fingerprintImage;
+                                  _leftThumbImage = _deviceInfoController.leftFingerprintImage ?? _deviceInfoController.fingerprintImage;
                                 }
                               });
                             },
@@ -348,12 +337,12 @@ class _BiometricEnrollmentScreenState extends State<BiometricEnrollmentScreen> {
                             onCancel: _deviceInfoController.cancelScan,
                             onPressed: _activeScan != null ? null : () async {
                               setState(() => _activeScan = 'right');
-                              bool success = await _deviceInfoController.scanFingerPrint();
+                              bool success = await _deviceInfoController.scanFingerPrint(scanType: 'right');
                               setState(() {
                                 _activeScan = null;
                                 if (success) {
                                   _rightThumbScanned = true;
-                                  _rightThumbImage = _deviceInfoController.fingerprintImage;
+                                  _rightThumbImage = _deviceInfoController.rightFingerprintImage ?? _deviceInfoController.fingerprintImage;
                                 }
                               });
                             },

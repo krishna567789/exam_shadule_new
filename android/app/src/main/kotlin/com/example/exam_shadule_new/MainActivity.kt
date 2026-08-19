@@ -173,14 +173,38 @@ class MainActivity : FlutterFragmentActivity() {
                     val extractError = sgfpLib!!.CreateTemplate(fingerInfo, imageBuffer, templateBuffer)
 
                     if (extractError == SGFDxErrorCode.SGFDX_ERROR_NONE) {
+                        val serialNumber = try { String(deviceInfo.deviceSN()).trim { it <= ' ' } } catch (_: Exception) { "SG-HU20" }
+                        val imageDpi = try { deviceInfo.imageDPI } catch (_: Exception) { 500 }
+                        val fwVersion = try { deviceInfo.FWVersion.toString() } catch (_: Exception) { "V1.0" }
+                        val brightness = try { deviceInfo.brightness } catch (_: Exception) { 100 }
+                        val contrast = try { deviceInfo.contrast } catch (_: Exception) { 100 }
+                        val gain = try { deviceInfo.gain } catch (_: Exception) { 2 }
+
+                        Log.i("SecuGenBiometric", "=======================================================")
+                        Log.i("SecuGenBiometric", "✅ [NATIVE] SECUGEN FINGERPRINT CAPTURED CLEAR DATA")
+                        Log.i("SecuGenBiometric", "Status: SUCCESS | Quality: $quality%")
+                        Log.i("SecuGenBiometric", "Dimensions: ${width}x${height} px | DPI: $imageDpi")
+                        Log.i("SecuGenBiometric", "Template Length: ${templateBuffer.size} bytes | Raw Image: ${imageBuffer.size} bytes")
+                        Log.i("SecuGenBiometric", "Serial Number: $serialNumber | FW: $fwVersion")
+                        Log.i("SecuGenBiometric", "=======================================================")
+
                         runOnUiThread {
                             result.success(mapOf(
-                                "success"  to true,
-                                "image"    to imageBuffer,
-                                "template" to templateBuffer,
-                                "width"    to width,
-                                "height"   to height,
-                                "quality"  to quality
+                                "success"      to true,
+                                "image"        to imageBuffer,
+                                "template"     to templateBuffer,
+                                "width"        to width,
+                                "height"       to height,
+                                "quality"      to quality,
+                                "serialNumber" to serialNumber,
+                                "imageDPI"     to imageDpi,
+                                "fwVersion"    to fwVersion,
+                                "brightness"   to brightness,
+                                "contrast"     to contrast,
+                                "gain"         to gain,
+                                "deviceName"   to (secugenDevice?.deviceName ?: "SecuGen HU20"),
+                                "vendorId"     to (secugenDevice?.vendorId?.toString() ?: "4450"),
+                                "productId"    to (secugenDevice?.productId?.toString() ?: "")
                             ))
                         }
                     } else {

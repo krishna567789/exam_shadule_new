@@ -24,7 +24,7 @@ class NotificationService {
     );
 
     await _flutterLocalNotificationsPlugin.initialize(
-      initializationSettings,
+      settings: initializationSettings,
       onDidReceiveNotificationResponse:
           (NotificationResponse notificationResponse) async {
         // Handle notification tapped logic here
@@ -58,10 +58,10 @@ class NotificationService {
       android: androidPlatformChannelSpecifics,
     );
     await _flutterLocalNotificationsPlugin.show(
-       0, // Notification ID
-       'Syncing Data',
-      'Uploading candidate records... $percentage%',
-      platformChannelSpecifics,
+      id: 0, // Notification ID
+      title: 'Syncing Data',
+      body: 'Uploading candidate records... $percentage%',
+      notificationDetails: platformChannelSpecifics,
     );
   }
 
@@ -78,14 +78,14 @@ class NotificationService {
       android: androidPlatformChannelSpecifics,
     );
     await _flutterLocalNotificationsPlugin.show(
-       0,
-      'Sync Complete',
-      'All candidates have been synced successfully.',
-      platformChannelSpecifics,
+      id: 0, // Using same ID will overwrite the progress notification
+      title: 'Sync Complete',
+      body: 'All candidates have been synced successfully.',
+      notificationDetails: platformChannelSpecifics,
     );
   }
 
   Future<void> cancelNotification() async {
-    await _flutterLocalNotificationsPlugin.cancel( 0);
+    await _flutterLocalNotificationsPlugin.cancel(id: 0);
   }
 }

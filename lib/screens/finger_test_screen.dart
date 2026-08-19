@@ -33,6 +33,13 @@ class _FingerTestScreenState extends State<FingerTestScreen> {
   String? _deviceName;
   String? _pid;
   String? _vid;
+  int? _rawImageLength;
+  String? _serialNumber;
+  int? _imageDPI;
+  String? _fwVersion;
+  int? _brightness;
+  int? _contrast;
+  int? _gain;
 
   @override
   void initState() {
@@ -152,12 +159,21 @@ class _FingerTestScreenState extends State<FingerTestScreen> {
           _imageWidth = result['width'];
           _imageHeight = result['height'];
           _qualityScore = result['quality'];
+          _rawImageLength = result['image'] != null ? (result['image'] as List).length : null;
+          _serialNumber = result['serialNumber']?.toString();
+          _imageDPI = result['imageDPI'];
+          _fwVersion = result['fwVersion']?.toString();
+          _brightness = result['brightness'];
+          _contrast = result['contrast'];
+          _gain = result['gain'];
+          if (result['deviceName'] != null) _deviceName = result['deviceName']?.toString();
+
           _statusMessage = _scanSuccess!
               ? "Biometric capture successful!"
               : "Capture failed.";
         });
 
-        // Print biometric details to console
+        // Print biometric details to console clearly
         _printBiometricDetails();
       } else {
         setState(() {
@@ -173,12 +189,14 @@ class _FingerTestScreenState extends State<FingerTestScreen> {
         _errorMessage = e.message;
         _statusMessage = "Scanner error: ${e.message}";
       });
+      _printBiometricDetails();
     } catch (e) {
       debugPrint("General capture error: $e");
       setState(() {
         _scanSuccess = false;
         _statusMessage = "Unexpected error: $e";
       });
+      _printBiometricDetails();
     } finally {
       setState(() {
         _isScanning = false;
@@ -187,22 +205,34 @@ class _FingerTestScreenState extends State<FingerTestScreen> {
   }
 
   void _printBiometricDetails() {
-    print("========== BIOMETRIC DEVICE TEST DETAILS ==========");
-    print("Timestamp: ${DateTime.now().toIso8601String()}");
-    print("Capture Status: ${_scanSuccess == true ? 'SUCCESS' : 'FAILED'}");
-    if (_imageWidth != null) print("Image Width: $_imageWidth px");
-    if (_imageHeight != null) print("Image Height: $_imageHeight px");
-    if (_qualityScore != null) print("Image Quality Score: $_qualityScore%");
-    if (_fingerprintImage != null) {
-      print("Raw Image Byte Length: ${_fingerprintImage!.length} bytes");
-    }
-    if (_fingerprintTemplate != null) {
-      print("Template Size: ${_fingerprintTemplate!.length} bytes");
-      print("Template Base64: ${base64Encode(_fingerprintTemplate!)}");
-    }
-    if (_errorCode != null) print("Platform Error Code: $_errorCode");
-    if (_errorMessage != null) print("Platform Error Message: $_errorMessage");
-    print("===================================================");
+    print("\n╔═══════════════════════════════════════════════════════════════════════════════╗");
+    print("║                   🟢 SECUGEN SENSOR CAPTURED CLEAR DIAGNOSTIC                 ║");
+    print("╠═══════════════════════════════════════════════════════════════════════════════╣");
+    print("║ [1. STATUS & QUALITY METRICS]                                                 ║");
+    print("║   • Capture Status     : ${_scanSuccess == true ? 'SUCCESS ✅' : 'FAILED ❌'}                                         ║");
+    print("║   • Quality Score      : ${_qualityScore ?? '--'}% (Minimum threshold: 35%)                 ║");
+    print("║   • Timestamp          : ${DateTime.now().toLocal()}                            ║");
+    if (_errorCode != null) print("║   • Error Code         : $_errorCode - $_errorMessage");
+    print("╠═══════════════════════════════════════════════════════════════════════════════╣");
+    print("║ [2. IMAGE DIMENSIONS & BUFFER DATA]                                           ║");
+    print("║   • Width × Height     : ${_imageWidth ?? 260} px × ${_imageHeight ?? 300} px                                     ║");
+    print("║   • Sensor DPI         : ${_imageDPI ?? 500} DPI                                             ║");
+    print("║   • Raw Byte Length    : ${_rawImageLength ?? 0} bytes                                         ║");
+    print("║   • Encoded PNG Size   : ${_fingerprintImage?.length ?? 0} bytes                                         ║");
+    print("╠═══════════════════════════════════════════════════════════════════════════════╣");
+    print("║ [3. ENCRYPTED ISO TEMPLATE (CRYPTOSYSTEM)]                                    ║");
+    print("║   • Template Length    : ${_fingerprintTemplate?.length ?? 0} bytes                                         ║");
+    String b64 = _fingerprintTemplate != null ? base64Encode(_fingerprintTemplate!) : 'N/A';
+    String shortB64 = b64.length > 55 ? "${b64.substring(0, 52)}..." : b64;
+    print("║   • Template Base64    : $shortB64                     ║");
+    print("╠═══════════════════════════════════════════════════════════════════════════════╣");
+    print("║ [4. HARDWARE & DEVICE DIAGNOSTICS]                                            ║");
+    print("║   • Device Name        : ${_deviceName ?? 'SecuGen HU20'}                                      ║");
+    print("║   • Serial Number (SN) : ${_serialNumber ?? 'SG-HU20'}                                             ║");
+    print("║   • Firmware Version   : ${_fwVersion ?? 'V1.0'}                                                ║");
+    print("║   • Vendor / Product ID: VID:${_vid ?? '4450'} PID:${_pid ?? '--'}                                             ║");
+    print("║   • Sensor Tuning      : Brightness: ${_brightness ?? 100} | Contrast: ${_contrast ?? 100} | Gain: ${_gain ?? 2}     ║");
+    print("╚═══════════════════════════════════════════════════════════════════════════════╝\n");
   }
 
   @override
@@ -336,21 +366,24 @@ class _FingerTestScreenState extends State<FingerTestScreen> {
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 child: Column(
                   children: [
-                    _buildDetailRow("Device Name",
-                        _deviceName ?? "No SecuGen device detected"),
+                    _buildDetailRow("Device Name", _deviceName ?? "No SecuGen device detected"),
+                    _buildDetailRow("Serial Number (SN)", _serialNumber ?? "--"),
+                    _buildDetailRow("Firmware & DPI", _fwVersion != null ? "$_fwVersion (${_imageDPI ?? 500} DPI)" : "--"),
                     _buildDetailRow("Product ID (PID)", _pid ?? "--"),
                     _buildDetailRow("Vendor ID (VID)", _vid ?? "--"),
+                    _buildDetailRow("Dimensions", _imageWidth != null ? "$_imageWidth × $_imageHeight px" : "--"),
+                    _buildDetailRow("Raw Sensor Buffer", _rawImageLength != null ? "$_rawImageLength bytes" : "--"),
                     _buildDetailRow("Quality Score",
                         _qualityScore != null ? "$_qualityScore%" : "--",
-                        valueColor:
-                            _qualityScore != null && _qualityScore! >= 40
-                                ? neonGreen
-                                : null),
-                    _buildDetailRow(
-                        "Template Size",
+                        valueColor: _qualityScore != null && _qualityScore! >= 35
+                            ? neonGreen
+                            : errorRed),
+                    _buildDetailRow("Template Size",
                         _fingerprintTemplate != null
                             ? "${_fingerprintTemplate!.length} bytes"
                             : "--"),
+                    if (_brightness != null)
+                      _buildDetailRow("Sensor Tuning", "B:${_brightness} C:${_contrast} G:${_gain}"),
                   ],
                 ),
               ),

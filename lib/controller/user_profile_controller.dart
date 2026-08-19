@@ -25,6 +25,7 @@ class UserProfileController extends GetxController {
   final stateController = TextEditingController();
   final centerNameController = TextEditingController();
   final centerCodeController = TextEditingController();
+  final operatorIdController = TextEditingController();
 
   final ImagePicker _picker = ImagePicker();
 
@@ -38,7 +39,8 @@ class UserProfileController extends GetxController {
 
       print("--- FETCHING OPERATOR DETAILS ---");
       final response = await http.get(
-        Uri.parse('https://bio.ubroapi.space/api/operator-users/$operatorId/details'),
+        Uri.parse(
+            'https://bio.ubroapi.space/api/operator-users/$operatorId/details'),
         headers: {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',
@@ -59,12 +61,13 @@ class UserProfileController extends GetxController {
             cityController.text = profile['city'] ?? "";
             stateController.text = profile['state'] ?? "";
             addressController.text = profile['address'] ?? "";
-            
+
             // Save updated info to SharedPreferences
             await prefs.setString('operator_name', nameController.text);
             await prefs.setString('father_name', fatherController.text);
             await prefs.setString('operator_phone', mobileController.text);
-            await prefs.setString('operator_city_state', "${cityController.text}, ${stateController.text}");
+            await prefs.setString('operator_city_state',
+                "${cityController.text}, ${stateController.text}");
           }
         }
       }
@@ -84,7 +87,8 @@ class UserProfileController extends GetxController {
     await Permission.location.request();
   }
 
-  Future<void> pickImage(bool isProfileImage, ImageSource source, {bool isFront = false}) async {
+  Future<void> pickImage(bool isProfileImage, ImageSource source,
+      {bool isFront = false}) async {
     await requestPermissions(source);
     XFile? pickedFile = await _picker.pickImage(source: source);
 
@@ -106,10 +110,11 @@ class UserProfileController extends GetxController {
   Future<File?> compressImage(File imageFile) async {
     try {
       final dir = await getTemporaryDirectory();
-      final targetPath = "${dir.path}/${DateTime.now().millisecondsSinceEpoch}.jpg";
+      final targetPath =
+          "${dir.path}/${DateTime.now().millisecondsSinceEpoch}.jpg";
 
       var result = await FlutterImageCompress.compressAndGetFile(
-        imageFile.absolute.path, 
+        imageFile.absolute.path,
         targetPath,
         quality: 70,
         format: CompressFormat.jpeg,
@@ -125,15 +130,17 @@ class UserProfileController extends GetxController {
   Future<void> submitForm() async {
     try {
       Get.dialog(
-        const Center(child: CircularProgressIndicator(color: Color(0xff6388bd))),
+        const Center(
+            child: CircularProgressIndicator(color: Color(0xff6388bd))),
         barrierDismissible: false,
       );
 
       SharedPreferences prefs = await SharedPreferences.getInstance();
       String? token = prefs.getString('token');
 
-      var request = http.MultipartRequest('POST', Uri.parse('https://bio.ubroapi.space/api/operator-users'));
-      
+      var request = http.MultipartRequest(
+          'POST', Uri.parse('https://bio.ubroapi.space/api/operator-users'));
+
       request.headers.addAll({
         'Authorization': 'Bearer $token',
         'Accept': 'application/json',
@@ -147,6 +154,7 @@ class UserProfileController extends GetxController {
         'state': stateController.text.trim(),
         'city': cityController.text.trim(),
         'address': addressController.text.trim(),
+        'operatorId': operatorIdController.text.trim(),
       });
 
       // Helper to add files with explicit content type
@@ -172,7 +180,8 @@ class UserProfileController extends GetxController {
       print("--- SUBMIT PROFILE REQUEST ---");
       print("URL: ${request.url}");
       print("Fields: ${request.fields}");
-      print("Files: ${request.files.map((f) => "${f.field}: ${f.filename} (${f.contentType})").toList()}");
+      print(
+          "Files: ${request.files.map((f) => "${f.field}: ${f.filename} (${f.contentType})").toList()}");
 
       var streamedResponse = await request.send();
       var response = await http.Response.fromStream(streamedResponse);
@@ -186,23 +195,29 @@ class UserProfileController extends GetxController {
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         await prefs.setBool('is_profile_completed', true);
-        await prefs.setBool('is_logged_in', true); // SET LOGGED IN STATUS AFTER PROFILE CREATION
+        await prefs.setBool('is_logged_in',
+            true); // SET LOGGED IN STATUS AFTER PROFILE CREATION
         await prefs.setString('operator_name', nameController.text.trim());
         await prefs.setString('father_name', fatherController.text.trim());
         await prefs.setString('operator_phone', mobileController.text.trim());
-        await prefs.setString('operator_city_state', "${cityController.text.trim()}, ${stateController.text.trim()}");
+        await prefs.setString('operator_city_state',
+            "${cityController.text.trim()}, ${stateController.text.trim()}");
 
-        Get.snackbar('Success', 'Profile created successfully!', backgroundColor: Colors.greenAccent);
+        Get.snackbar('Success', 'Profile created successfully!',
+            backgroundColor: Colors.greenAccent);
         Get.offAll(() => const SessionSetupScreen());
       } else {
         var errorData = json.decode(response.body);
-        Get.snackbar('Error', errorData['message'] ?? 'Failed to create profile', backgroundColor: Colors.redAccent, colorText: Colors.white);
+        Get.snackbar(
+            'Error', errorData['message'] ?? 'Failed to create profile',
+            backgroundColor: Colors.redAccent, colorText: Colors.white);
       }
     } catch (e, stackTrace) {
       if (Get.isDialogOpen ?? false) Get.back();
       print('UserProfile Submit Error: $e');
       print('StackTrace: $stackTrace');
-      Get.snackbar('Error', 'Something went wrong: $e', backgroundColor: Colors.redAccent, colorText: Colors.white);
+      Get.snackbar('Error', 'Something went wrong: $e',
+          backgroundColor: Colors.redAccent, colorText: Colors.white);
     }
   }
 }

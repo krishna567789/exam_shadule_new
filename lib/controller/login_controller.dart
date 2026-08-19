@@ -19,9 +19,9 @@ class LoginController extends GetxController {
           connectivityResults.contains(ConnectivityResult.ethernet) ||
           connectivityResults.contains(ConnectivityResult.vpn);
       if (!hasNet) {
-        Get.back();
-        Get.snackbar(
-            'No Internet', 'Please check your connection (Wi-Fi or Mobile Data) and try again.',
+        Get.back(); // close any open dialog
+        Get.snackbar('No Internet',
+            'Please check your connection (Wi-Fi or Mobile Data) and try again.',
             backgroundColor: Colors.redAccent);
         return;
       }
@@ -45,7 +45,7 @@ class LoginController extends GetxController {
             'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhM2QxNmM5MGUyZjBiMzMwNjM2MDk2MCIsInJvbGUiOiJvcGVyYXRvciIsImF1dGhTb3VyY2UiOiJyZWdpc3RyYXJzIiwiaWF0IjoxNzgyNDQzOTA2LCJleHAiOjE3ODI1MzAzMDZ9.UtEuew3WcYlJiemTFEs1vNJRDUDHrlnP64DrR4VDcYY',
       };
       var loginBody = {
-        "email": email,
+        "operatorId": email,
         "password": password,
       };
 
@@ -59,7 +59,6 @@ class LoginController extends GetxController {
         headers: loginHeaders,
         body: json.encode(loginBody),
       );
-
       print("--- LOGIN RESPONSE ---");
       print("Status Code: ${loginResponse.statusCode}");
       print("Response Body: ${loginResponse.body}");

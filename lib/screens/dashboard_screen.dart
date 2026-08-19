@@ -7,6 +7,7 @@ import '../controller/download_controller.dart';
 import '../controller/login_controller.dart';
 import '../utils/app_theme.dart';
 import 'package:intl/intl.dart';
+import 'physical_attendance_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -322,24 +323,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                     ],
                                   ],
                                 ),
-                                const SizedBox(height: 20),
-                                // Obx(() => Container(
-                                //   padding: const EdgeInsets.all(12),
-                                //   decoration: BoxDecoration(
-                                //     color: Colors.grey.withOpacity(0.05),
-                                //     borderRadius: BorderRadius.circular(8),
-                                //   ),
-                                //   child: Row(
-                                //     mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                //     children: [
-                                //       Text("SERVER STATUS", style: GoogleFonts.outfit(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey)),
-                                //       Text(
-                                //         "Total: ${_dashboardController.totalCandidates.value} | Present: ${_dashboardController.presentCandidates.value}",
-                                //         style: GoogleFonts.outfit(fontSize: 10, fontWeight: FontWeight.bold, color: cyberBlue),
-                                //       ),
-                                //     ],
-                                //   ),
-                                // )),
                                 const SizedBox(height: 24),
                                 Obx(() {
                                   final bool loading =
@@ -440,6 +423,53 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 const SizedBox(height: 12),
                                 _buildInfoRow('Operator Name',
                                     _dashboardController.operatorName.value),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          _buildHudCard(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Icon(Icons.note_add_outlined,
+                                        color: Color(0xFF1976D2), size: 18),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'PHYSICAL ATTENDANCE',
+                                      style: GoogleFonts.outfit(
+                                        fontWeight: FontWeight.bold,
+                                        color: Theme.of(context).textTheme.titleSmall?.color,
+                                        letterSpacing: 1.2,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+                                Container(
+                                  width: double.infinity,
+                                  height: 48,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: cyberBlue.withOpacity(0.5)),
+                                    color: cyberBlue.withOpacity(0.1),
+                                  ),
+                                  child: TextButton.icon(
+                                    onPressed: () => Get.to(() => PhysicalAttendanceScreen()),
+                                    icon: const Icon(Icons.upload_file, size: 18, color: cyberBlue),
+                                    label: Text(
+                                      'UPLOAD ATTENDANCE SHEET',
+                                      style: GoogleFonts.outfit(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.bold,
+                                        color: cyberBlue,
+                                        letterSpacing: 1.1,
+                                      ),
+                                    ),
+                                  ),
+                                ),
                               ],
                             ),
                           ),
