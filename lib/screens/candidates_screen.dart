@@ -24,6 +24,14 @@ class _CandidatesScreenState extends State<CandidatesScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = "";
   String _statusFilter = "All"; // "All", "Present", "Absent"
+  String _postFilter = "All";
+  String _syncFilter = "All"; // "All", "Synced", "Pending"
+  
+  DateTime? _fromDate;
+  DateTime? _toDate;
+  
+  // To keep track of available posts for filtering
+  List<String> _availablePosts = ["All"];
 
   @override
   void initState() {
@@ -520,30 +528,35 @@ class _CandidatesScreenState extends State<CandidatesScreen> {
                       letterSpacing: 1.1,
                     ),
                   ),
-                  PopupMenuButton<String>(
-                    onSelected: (value) {
-                      setState(() {
-                        _statusFilter = value;
-                      });
-                    },
-                    icon: Row(
-                      children: [
-                        Icon(Icons.filter_list, size: 16, color: Theme.of(context).primaryColor),
-                        const SizedBox(width: 4),
-                        Text(
-                          _statusFilter,
-                          style: GoogleFonts.outfit(
-                            color: textMuted,
-                            fontSize: 12,
-                          ),
+                  GestureDetector(
+                    onTap: () => _showFilterBottomSheet(),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).primaryColor.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: Theme.of(context).primaryColor.withOpacity(0.2),
                         ),
-                      ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.filter_list, size: 16, color: Theme.of(context).primaryColor),
+                          const SizedBox(width: 6),
+                          Text(
+                            (_statusFilter == "All" && _postFilter == "All" && _syncFilter == "All" && _fromDate == null && _toDate == null) 
+                                ? "All" 
+                                : (_statusFilter != "All" ? _statusFilter : "Filtered"),
+                            style: GoogleFonts.outfit(
+                              color: textMuted,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    itemBuilder: (context) => [
-                      const PopupMenuItem(value: "All", child: Text("All")),
-                      const PopupMenuItem(value: "Present", child: Text("Present")),
-                      const PopupMenuItem(value: "Absent", child: Text("Absent")),
-                    ],
                   ),
                 ],
               ),
@@ -575,6 +588,14 @@ class _CandidatesScreenState extends State<CandidatesScreen> {
                       .map((e) => Map<String, dynamic>.from(e as Map))
                       .toList();
 
+                  // Update available posts list
+                  final posts = allStudents
+                      .map((s) => s['postName']?.toString() ?? "N/A")
+                      .toSet()
+                      .toList();
+                  posts.sort();
+                  _availablePosts = ["All", ...posts];
+
                   final filteredStudents = allStudents.where((student) {
                     final name = (student['name'] ?? "").toString().toLowerCase();
                     final rollNo = (student['rollNo'] ?? student['rollno'] ?? "").toString().toLowerCase();
@@ -586,8 +607,45 @@ class _CandidatesScreenState extends State<CandidatesScreen> {
                     } else if (_statusFilter == "Absent") {
                       matchesStatus = student['attendanceStatus'] != true;
                     }
+
+                    bool matchesPost = true;
+                    if (_postFilter != "All") {
+                      matchesPost = (student['postName']?.toString() ?? "N/A") == _postFilter;
+                    }
+
+                    bool matchesSync = true;
+                    if (_syncFilter == "Synced") {
+                      matchesSync = student['syncStatus'] == true;
+                    } else if (_syncFilter == "Pending") {
+                      matchesSync = student['syncStatus'] != true && student['attendanceStatus'] == true;
+                    }
+
+                    bool matchesDate = true;
+                    if (_fromDate != null || _toDate != null) {
+                      String? shiftDateStr = student['shiftDate']?.toString();
+                      if (shiftDateStr != null && shiftDateStr != "N/A") {
+                        try {
+                          DateTime studentDate = DateTime.parse(shiftDateStr);
+                          // Reset time for date comparison
+                          DateTime checkDate = DateTime(studentDate.year, studentDate.month, studentDate.day);
+                          
+                          if (_fromDate != null) {
+                            DateTime start = DateTime(_fromDate!.year, _fromDate!.month, _fromDate!.day);
+                            if (checkDate.isBefore(start)) matchesDate = false;
+                          }
+                          if (_toDate != null) {
+                            DateTime end = DateTime(_toDate!.year, _toDate!.month, _toDate!.day);
+                            if (checkDate.isAfter(end)) matchesDate = false;
+                          }
+                        } catch (_) {
+                          matchesDate = false;
+                        }
+                      } else {
+                        matchesDate = false;
+                      }
+                    }
                     
-                    return matchesSearch && matchesStatus;
+                    return matchesSearch && matchesStatus && matchesPost && matchesSync && matchesDate;
                   }).toList();
 
                   if (filteredStudents.isEmpty) {
@@ -677,6 +735,20 @@ class _CandidatesScreenState extends State<CandidatesScreen> {
                                         ),
                                         overflow: TextOverflow.ellipsis,
                                       ),
+                                      if (student['postName'] != null)
+                                        Padding(
+                                          padding: const EdgeInsets.only(top: 2.0),
+                                          child: Text(
+                                            student['postName'].toString(),
+                                            style: GoogleFonts.outfit(
+                                              color: const Color(0xFF1976D2),
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
                                     ],
                                   ),
                                 ),
@@ -726,6 +798,317 @@ class _CandidatesScreenState extends State<CandidatesScreen> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  void _showFilterBottomSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) {
+          final isDark = Theme.of(context).brightness == Brightness.dark;
+          final Color primaryColor = const Color(0xFF1976D2);
+          
+          return Container(
+            height: MediaQuery.of(context).size.height * 0.8,
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF0F172A) : Theme.of(context).scaffoldBackgroundColor,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(vertical: 12),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        "Filters",
+                        style: GoogleFonts.outfit(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white : Colors.black,
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          setModalState(() {
+                            _statusFilter = "All";
+                            _postFilter = "All";
+                            _syncFilter = "All";
+                            _fromDate = null;
+                            _toDate = null;
+                          });
+                          setState(() {});
+                        },
+                        child: Text(
+                          "Reset All",
+                          style: GoogleFonts.outfit(
+                            color: primaryColor,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 20),
+                        _buildFilterLabel("Attendance Status"),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 8,
+                          children: ["All", "Present", "Absent"].map((status) {
+                            final isSelected = _statusFilter == status;
+                            return _buildFilterChip(
+                              label: status,
+                              isSelected: isSelected,
+                              onSelected: (selected) {
+                                setModalState(() {
+                                  _statusFilter = status;
+                                });
+                                setState(() {});
+                              },
+                            );
+                          }).toList(),
+                        ),
+                        const SizedBox(height: 24),
+                        _buildFilterLabel("Sync Status"),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 8,
+                          children: ["All", "Synced", "Pending"].map((status) {
+                            final isSelected = _syncFilter == status;
+                            return _buildFilterChip(
+                              label: status,
+                              isSelected: isSelected,
+                              onSelected: (selected) {
+                                setModalState(() {
+                                  _syncFilter = status;
+                                });
+                                setState(() {});
+                              },
+                            );
+                          }).toList(),
+                        ),
+                        const SizedBox(height: 24),
+                        _buildFilterLabel("Filter by Date Range"),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildDatePickerBox(
+                                context: context,
+                                label: "From Date",
+                                date: _fromDate,
+                                onTap: () async {
+                                  final picked = await showDatePicker(
+                                    context: context,
+                                    initialDate: _fromDate ?? DateTime.now(),
+                                    firstDate: DateTime(2000),
+                                    lastDate: DateTime(2100),
+                                  );
+                                  if (picked != null) {
+                                    setModalState(() => _fromDate = picked);
+                                    setState(() {});
+                                  }
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _buildDatePickerBox(
+                                context: context,
+                                label: "To Date",
+                                date: _toDate,
+                                onTap: () async {
+                                  final picked = await showDatePicker(
+                                    context: context,
+                                    initialDate: _toDate ?? DateTime.now(),
+                                    firstDate: DateTime(2000),
+                                    lastDate: DateTime(2100),
+                                  );
+                                  if (picked != null) {
+                                    setModalState(() => _toDate = picked);
+                                    setState(() {});
+                                  }
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 24),
+                        _buildFilterLabel("Filter by Post"),
+                        const SizedBox(height: 12),
+                        ..._availablePosts.map((post) {
+                          final isSelected = _postFilter == post;
+                          return RadioListTile<String>(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(
+                              post,
+                              style: GoogleFonts.outfit(
+                                fontSize: 14,
+                                color: isSelected ? primaryColor : (isDark ? Colors.white70 : Colors.black87),
+                                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                              ),
+                            ),
+                            value: post,
+                            groupValue: _postFilter,
+                            onChanged: (value) {
+                              setModalState(() {
+                                _postFilter = value!;
+                              });
+                              setState(() {});
+                            },
+                            activeColor: primaryColor,
+                            dense: true,
+                          );
+                        }).toList(),
+                        const SizedBox(height: 40),
+                      ],
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primaryColor,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: Text(
+                        "APPLY FILTERS",
+                        style: GoogleFonts.outfit(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildDatePickerBox({
+    required BuildContext context,
+    required String label,
+    required DateTime? date,
+    required VoidCallback onTap,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        decoration: BoxDecoration(
+          color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: date != null ? const Color(0xFF1976D2) : (isDark ? Colors.white12 : Colors.grey.shade300),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.calendar_today,
+              size: 16,
+              color: date != null ? const Color(0xFF1976D2) : Colors.grey,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                date != null ? DateFormat('dd/MM/yyyy').format(date) : label,
+                style: GoogleFonts.outfit(
+                  fontSize: 13,
+                  color: date != null ? (isDark ? Colors.white : Colors.black) : Colors.grey,
+                  fontWeight: date != null ? FontWeight.bold : null,
+                ),
+              ),
+            ),
+            if (date != null)
+              GestureDetector(
+                onTap: () {
+                  setState(() {
+                    if (label == "From Date") _fromDate = null;
+                    else _toDate = null;
+                  });
+                },
+                child: const Icon(Icons.close, size: 14, color: Colors.grey),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFilterLabel(String label) {
+    return Text(
+      label.toUpperCase(),
+      style: GoogleFonts.outfit(
+        fontSize: 12,
+        fontWeight: FontWeight.bold,
+        color: const Color(0xFF1976D2).withOpacity(0.8),
+        letterSpacing: 1.1,
+      ),
+    );
+  }
+
+  Widget _buildFilterChip({
+    required String label,
+    required bool isSelected,
+    required Function(bool) onSelected,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return ChoiceChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: onSelected,
+      selectedColor: const Color(0xFF1976D2),
+      checkmarkColor: Colors.white,
+      backgroundColor: isDark ? Colors.white.withOpacity(0.05) : Colors.grey.shade100,
+      labelStyle: GoogleFonts.outfit(
+        fontSize: 13,
+        color: isSelected ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
+        fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+      ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(
+          color: isSelected ? const Color(0xFF1976D2) : (isDark ? Colors.white12 : Colors.grey.shade300),
         ),
       ),
     );

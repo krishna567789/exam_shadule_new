@@ -5,8 +5,8 @@ import 'package:hive_flutter/hive_flutter.dart';
 import '../controller/dashboard_controller.dart';
 import '../controller/download_controller.dart';
 import '../controller/login_controller.dart';
+import '../services/storage_service.dart';
 import '../utils/app_theme.dart';
-import 'package:intl/intl.dart';
 import 'physical_attendance_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -17,8 +17,7 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  final DashboardController _dashboardController =
-      Get.put(DashboardController());
+  final DashboardController _dashboardController = Get.put(DashboardController());
   final DownloadController _downloadController = Get.put(DownloadController());
   final LoginController _loginController = Get.find<LoginController>();
 
@@ -46,8 +45,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const SizedBox(height: 16),
               Text(
                 "Confirm Logout",
-                style: GoogleFonts.outfit(
-                    fontSize: 20, fontWeight: FontWeight.bold),
+                style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 12),
               const Text(
@@ -67,14 +65,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton(
-                      style:
-                          ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
                       onPressed: () {
                         Get.back();
                         _loginController.logout();
                       },
-                      child: const Text("LOGOUT",
-                          style: TextStyle(color: Colors.white)),
+                      child: const Text("LOGOUT", style: TextStyle(color: Colors.white)),
                     ),
                   ),
                 ],
@@ -86,463 +82,250 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildHudCard({
-    required Widget child,
-  }) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.all(2.0),
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardTheme.color,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: Theme.of(context).dividerColor.withOpacity(0.1),
-          width: 1.0,
-        ),
-      ),
-      padding: const EdgeInsets.all(20.0),
-      child: child,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    const Color cyberBlue = Color(0xFF2196F3);
-    const Color neonGreen = Color(0xFF10B981);
-    final Color textMuted = Theme.of(context).brightness == Brightness.light
-        ? const Color(0xFF64748B)
-        : Colors.white70;
-
+    const Color primaryColor = Color(0xFF10B981); // Teal color from image
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: SafeArea(
-        child: Column(
+      backgroundColor: isDark ? const Color(0xFF0F172A) : Colors.grey.shade50,
+      appBar: AppBar(
+        backgroundColor: primaryColor,
+        elevation: 0,
+        leading: const Icon(Icons.menu, color: Colors.white),
+        title: Row(
           children: [
-            // Header Section
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Theme.of(context).cardTheme.color?.withOpacity(0.5),
-                border: Border(
-                  bottom: BorderSide(
-                    color: Theme.of(context).dividerColor.withOpacity(0.1),
-                    width: 1.0,
-                  ),
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Row(
-                          children: [
-                            const Icon(Icons.location_on,
-                                color: Color(0xFF1976D2), size: 16),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Obx(() => Text(
-                                    _dashboardController.centerCode.value,
-                                    style: GoogleFonts.outfit(
-                                      color: const Color(0xFF1976D2),
-                                      fontSize: 13,
-                                      letterSpacing: 1.1,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  )),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Row(
-                        children: [
-                          IconButton(
-                            icon: Icon(
-                                Get.isDarkMode
-                                    ? Icons.light_mode
-                                    : Icons.dark_mode,
-                                color: Theme.of(context).primaryColor),
-                            onPressed: () => Get.changeTheme(Get.isDarkMode
-                                ? AppTheme.lightTheme
-                                : AppTheme.darkTheme),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.logout,
-                                color: Colors.redAccent),
-                            onPressed: () => _showLogoutDialog(),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Obx(() => Text(
-                        _dashboardController.centerName.value,
-                        style: GoogleFonts.outfit(
-                          color: Theme.of(context).textTheme.titleLarge?.color,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.2,
-                        ),
-                      )),
-                  const SizedBox(height: 8),
-                  Text(
-                    'MANAGEMENT DASHBOARD & SYNC STATUS',
-                    style: GoogleFonts.outfit(
-                      color: textMuted,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 1.5,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
+            const Icon(Icons.flag, color: Colors.white, size: 20),
+            const SizedBox(width: 8),
             Expanded(
-              child: ValueListenableBuilder(
-                  valueListenable: Hive.box('candidates_box').listenable(),
-                  builder: (context, Box box, _) {
-                    int total = box.length;
-                    int present = box.values
-                        .where((s) => (s as Map)['attendanceStatus'] == true)
-                        .length;
-                    int synced = box.values
-                        .where((s) => (s as Map)['syncStatus'] == true)
-                        .length;
-                    int failed = box.values
-                        .where((s) =>
-                            (s as Map)['syncFailed'] == true &&
-                            (s)['syncStatus'] != true)
-                        .length;
-                    int pending = present - synced - failed;
-
-                    return SingleChildScrollView(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 20, vertical: 20),
-                      child: Column(
-                        children: [
-                          // Live Status Card
-                          _buildHudCard(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        const Icon(Icons.cloud_sync,
-                                            color: Color(0xFF1976D2), size: 18),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          'SYNC STATUS',
-                                          style: GoogleFonts.outfit(
-                                            fontWeight: FontWeight.bold,
-                                            color: Theme.of(context)
-                                                .textTheme
-                                                .titleSmall
-                                                ?.color,
-                                            letterSpacing: 1.2,
-                                            fontSize: 14,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    Row(
-                                      children: [
-                                        if (failed > 0)
-                                          Padding(
-                                            padding: const EdgeInsets.only(
-                                                right: 8.0),
-                                            child: Text(
-                                              '$failed Failed',
-                                              style: GoogleFonts.outfit(
-                                                color: Colors.red,
-                                                fontSize: 10,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                          ),
-                                        Text(
-                                          pending > 0 || failed > 0
-                                              ? '$pending Pending'
-                                              : 'All Synced',
-                                          style: GoogleFonts.outfit(
-                                            color: pending > 0
-                                                ? Colors.orange
-                                                : neonGreen,
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 20),
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceAround,
-                                  children: [
-                                    _buildStatColumn(
-                                        'SCHEDULED',
-                                        total.toString(),
-                                        Theme.of(context)
-                                            .textTheme
-                                            .bodyLarge
-                                            ?.color),
-                                    Container(
-                                        width: 1,
-                                        height: 30,
-                                        color: Theme.of(context)
-                                            .dividerColor
-                                            .withOpacity(0.1)),
-                                    _buildStatColumn('PRESENT',
-                                        present.toString(), neonGreen),
-                                    Container(
-                                        width: 1,
-                                        height: 30,
-                                        color: Theme.of(context)
-                                            .dividerColor
-                                            .withOpacity(0.1)),
-                                    _buildStatColumn(
-                                        'SYNCED', synced.toString(), cyberBlue),
-                                    if (failed > 0) ...[
-                                      Container(
-                                          width: 1,
-                                          height: 30,
-                                          color: Theme.of(context)
-                                              .dividerColor
-                                              .withOpacity(0.1)),
-                                      _buildStatColumn('FAILED',
-                                          failed.toString(), Colors.red),
-                                    ],
-                                  ],
-                                ),
-                                const SizedBox(height: 24),
-                                Obx(() {
-                                  final bool loading =
-                                      _dashboardController.isLoading.value;
-                                  return Container(
-                                    width: double.infinity,
-                                    height: 48,
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(8),
-                                      gradient: loading
-                                          ? null
-                                          : const LinearGradient(
-                                              colors: [
-                                                Color(0xFF1976D2),
-                                                Color(0xFF2196F3)
-                                              ],
-                                            ),
-                                      color: loading
-                                          ? Colors.grey.withOpacity(0.2)
-                                          : null,
-                                    ),
-                                    child: ElevatedButton.icon(
-                                      onPressed: loading ? null : _startSync,
-                                      icon: Icon(
-                                        loading
-                                            ? Icons.hourglass_empty
-                                            : Icons.cloud_upload_outlined,
-                                        size: 18,
-                                        color: Colors.white,
-                                      ),
-                                      label: Text(
-                                        loading
-                                            ? 'UPLOADING...'
-                                            : 'SYNC & UPLOAD DATA',
-                                        style: GoogleFonts.outfit(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.white,
-                                          letterSpacing: 1.2,
-                                        ),
-                                      ),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.transparent,
-                                        shadowColor: Colors.transparent,
-                                      ),
-                                    ),
-                                  );
-                                }),
-                                Obx(() => _dashboardController.isLoading.value
-                                    ? Padding(
-                                        padding: const EdgeInsets.only(top: 16),
-                                        child: LinearProgressIndicator(
-                                          backgroundColor:
-                                              Colors.grey.withOpacity(0.1),
-                                          color: cyberBlue,
-                                          minHeight: 4,
-                                        ),
-                                      )
-                                    : const SizedBox.shrink()),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-
-                          // Session Info Card
-                          _buildHudCard(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    const Icon(Icons.assignment_outlined,
-                                        color: Color(0xFF1976D2), size: 18),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      'SESSION INFORMATION',
-                                      style: GoogleFonts.outfit(
-                                        fontWeight: FontWeight.bold,
-                                        color: Theme.of(context)
-                                            .textTheme
-                                            .titleSmall
-                                            ?.color,
-                                        letterSpacing: 1.2,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 16),
-                                _buildInfoRow('Exam Name',
-                                    _dashboardController.examName.value),
-                                const SizedBox(height: 12),
-                                _buildShiftInfoRow(
-                                  'Shift',
-                                  _downloadController.shiftStart.value,
-                                  _downloadController.shiftEnd.value,
-                                ),
-                                const SizedBox(height: 12),
-                                _buildInfoRow('Operator Name',
-                                    _dashboardController.operatorName.value),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          _buildHudCard(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    const Icon(Icons.note_add_outlined,
-                                        color: Color(0xFF1976D2), size: 18),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      'PHYSICAL ATTENDANCE',
-                                      style: GoogleFonts.outfit(
-                                        fontWeight: FontWeight.bold,
-                                        color: Theme.of(context).textTheme.titleSmall?.color,
-                                        letterSpacing: 1.2,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 16),
-                                Container(
-                                  width: double.infinity,
-                                  height: 48,
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(color: cyberBlue.withOpacity(0.5)),
-                                    color: cyberBlue.withOpacity(0.1),
-                                  ),
-                                  child: TextButton.icon(
-                                    onPressed: () => Get.to(() => PhysicalAttendanceScreen()),
-                                    icon: const Icon(Icons.upload_file, size: 18, color: cyberBlue),
-                                    label: Text(
-                                      'UPLOAD ATTENDANCE SHEET',
-                                      style: GoogleFonts.outfit(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.bold,
-                                        color: cyberBlue,
-                                        letterSpacing: 1.1,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }),
+              child: Obx(() => Text(
+                _dashboardController.centerName.value,
+                style: GoogleFonts.outfit(color: Colors.white, fontSize: 14),
+                overflow: TextOverflow.ellipsis,
+              )),
             ),
           ],
         ),
+        actions: [
+          IconButton(
+            icon: Icon(isDark ? Icons.light_mode : Icons.dark_mode, color: Colors.white),
+            onPressed: () => Get.changeTheme(isDark ? AppTheme.lightTheme : AppTheme.darkTheme),
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.white),
+            onPressed: _showLogoutDialog,
+          ),
+        ],
+      ),
+      body: Obx(() {
+        _dashboardController.refreshLocalStats();
+        
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 1. Application Details
+              _buildSectionTitle("Application Details"),
+              _buildHudCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildAppDetailRow("Exam Name:", _dashboardController.examName.value),
+                    const SizedBox(height: 8),
+                    _buildAppDetailRow("Centre Code:", _dashboardController.centerCode.value),
+                    const SizedBox(height: 8),
+                    _buildAppDetailRow("Shift:", StorageService.to.getString(StorageService.keyShift) ?? "1"),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // 2. Candidate Summary
+              _buildSectionTitle("Candidate Summary"),
+              Row(
+                children: [
+                  _buildStatCard("Total", _dashboardController.globalTotal.value.toString(), const Color(0xFF4F46E5)),
+                  _buildStatCard("Present", _dashboardController.globalPresent.value.toString(), const Color(0xFF10B981)),
+                  _buildStatCard("Absent", _dashboardController.globalAbsent.value.toString(), const Color(0xFFEF4444)),
+                ],
+              ),
+              const SizedBox(height: 24),
+
+              // 3. This Device Summary
+              _buildSectionTitle("This Device Summary"),
+              Row(
+                children: [
+                  _buildStatCard("Total", _dashboardController.localTotal.value.toString(), const Color(0xFF4F46E5)),
+                  _buildStatCard(
+                    "Present", 
+                    _dashboardController.localPresent.value.toString(), 
+                    const Color(0xFF10B981),
+                    showArrow: true,
+                  ),
+                  _buildStatCard(
+                    "Absent", 
+                    _dashboardController.localAbsent.value.toString(), 
+                    const Color(0xFFEF4444),
+                    showArrow: true,
+                  ),
+                ],
+              ),
+              
+              const SizedBox(height: 32),
+              
+              // Sync Action
+              Center(
+                child: Column(
+                  children: [
+                    if (_dashboardController.isLoading.value)
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: 16),
+                        child: CircularProgressIndicator(),
+                      ),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: _dashboardController.isLoading.value ? null : _startSync,
+                        icon: const Icon(Icons.sync, color: Colors.white),
+                        label: Text(
+                          _dashboardController.isLoading.value ? "UPLOADING..." : "SYNC PENDING DATA",
+                          style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF1976D2),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: () => Get.to(() => const PhysicalAttendanceScreen()),
+                      icon: const Icon(Icons.upload_file),
+                      label: const Text("PHYSICAL ATTENDANCE"),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(double.infinity, 48),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      }),
+    );
+  }
+
+  Widget _buildSectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12, left: 4),
+      child: Text(
+        title,
+        style: GoogleFonts.outfit(
+          fontSize: 16,
+          fontWeight: FontWeight.bold,
+          color: Theme.of(context).textTheme.bodyLarge?.color?.withOpacity(0.8),
+        ),
       ),
     );
   }
 
-  Widget _buildStatColumn(String label, String value, Color? color) {
-    return Column(
-      children: [
-        Text(label,
-            style: GoogleFonts.outfit(
-                fontSize: 9, color: Colors.grey, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 4),
-        Text(value,
-            style: GoogleFonts.outfit(
-                fontSize: 20, fontWeight: FontWeight.bold, color: color)),
-      ],
-    );
-  }
-
-  Widget _buildInfoRow(String label, String value) {
+  Widget _buildAppDetailRow(String label, String value) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label,
-            style: GoogleFonts.outfit(fontSize: 12, color: Colors.grey)),
-        Expanded(
-            child: Text(value,
-                textAlign: TextAlign.end,
-                style: GoogleFonts.outfit(
-                    fontSize: 12, fontWeight: FontWeight.bold),
-                overflow: TextOverflow.ellipsis)),
-      ],
-    );
-  }
-
-  Widget _buildShiftInfoRow(String label, String start, String end) {
-    String formattedStart = _formatDateTime(start);
-    String formattedEnd = _formatDateTime(end);
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label,
-            style: GoogleFonts.outfit(fontSize: 12, color: Colors.grey)),
+        SizedBox(
+          width: 100,
+          child: Text(
+            label,
+            style: GoogleFonts.outfit(fontSize: 14, color: Colors.grey.shade600),
+          ),
+        ),
         Expanded(
           child: Text(
-            '$formattedStart - $formattedEnd',
-            textAlign: TextAlign.end,
-            style:
-                GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold),
-            overflow: TextOverflow.ellipsis,
+            value,
+            style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w600),
           ),
         ),
       ],
     );
   }
 
-  String _formatDateTime(String dateTimeString) {
-    if (dateTimeString.isEmpty) return 'N/A';
-    try {
-      DateTime dt = DateTime.parse(dateTimeString);
-      return DateFormat('hh:mm a').format(dt);
-    } catch (e) {
-      return dateTimeString;
-    }
+  Widget _buildStatCard(String label, String value, Color valueColor, {bool showArrow = false}) {
+    return Expanded(
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 4),
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardTheme.color,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Theme.of(context).dividerColor.withOpacity(0.1)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.02),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Text(
+              label,
+              style: GoogleFonts.outfit(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: Colors.grey.shade600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              value,
+              style: GoogleFonts.outfit(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: valueColor,
+              ),
+            ),
+            if (showArrow) ...[
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    "Full details",
+                    style: GoogleFonts.outfit(fontSize: 9, color: Colors.grey),
+                  ),
+                  const Icon(Icons.arrow_forward, size: 10, color: Colors.grey),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHudCard({required Widget child}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardTheme.color,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Theme.of(context).dividerColor.withOpacity(0.1)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: child,
+    );
   }
 }

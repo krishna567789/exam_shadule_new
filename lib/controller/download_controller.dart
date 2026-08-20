@@ -1,18 +1,19 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:image/image.dart' as img;
-import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:get/get.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:exam_shadule_new/services/socket_service.dart';
+import '../services/socket_service.dart';
+import '../services/api_service.dart';
+import '../services/storage_service.dart';
+import 'base_controller.dart';
 
-class DownloadController extends GetxController {
+class DownloadController extends BaseController {
   Database? _database;
   final RxString centerCode = ''.obs;
   final RxString centerName = ''.obs;
@@ -34,12 +35,11 @@ class DownloadController extends GetxController {
   }
 
   Future<void> getStoredSessionData() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    centerCode.value = prefs.getString('center_code') ?? "No Code Found";
-    centerName.value = prefs.getString('center_name') ?? "No Name Found";
-    shiftStart.value = prefs.getString('shift_start_time') ?? "";
-    shiftEnd.value = prefs.getString('shift_end_time') ?? "";
-    shift.value = prefs.getString('shift') ?? "Shift 1";
+    centerCode.value = StorageService.to.getString(StorageService.keyCenterCode) ?? "No Code Found";
+    centerName.value = StorageService.to.getString(StorageService.keyCenterName) ?? "No Name Found";
+    shiftStart.value = StorageService.to.getString(StorageService.keyShiftStartTime) ?? "";
+    shiftEnd.value = StorageService.to.getString(StorageService.keyShiftEndTime) ?? "";
+    shift.value = StorageService.to.getString(StorageService.keyShift) ?? "Shift 1";
   }
 
   Future<void> _initDatabase() async {
@@ -59,9 +59,7 @@ class DownloadController extends GetxController {
   }
 
   Future<void> ensureDatabaseInitialized() async {
-    if (_database == null) {
-      await _initDatabase();
-    }
+    if (_database == null) await _initDatabase();
   }
 
   Future<void> countAllStudents() async {
@@ -84,10 +82,7 @@ class DownloadController extends GetxController {
     await box.clear();
 
     await ensureDatabaseInitialized();
-    if (_database != null) {
-      await _database!.delete("shifts");
-    }
-    
+    if (_database != null) await _database!.delete("shifts");
     totalStudents.value = 0;
   }
 
@@ -96,47 +91,38 @@ class DownloadController extends GetxController {
       isDownloading.value = true;
       downloadProgress.value = 0.0;
 
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      String? token = prefs.getString('token');
-
-      var response = await http.get(
-        Uri.parse('https://bio.ubroapi.space/api/mobile/download'),
-        headers: {
-          'Authorization': 'Bearer $token',
-        },
-      );
+      final response = await ApiService.to.get(ApiService.urlDownload);
 
       print("Download Response Status: ${response.statusCode}");
-      print("Download Response Body (first 500): ${response.body.substring(0, response.body.length > 500 ? 500 : response.body.length)}");
 
       if (response.statusCode == 200) {
         var responseData = json.decode(response.body);
 
-        // ── Save operator / exam / shift / center from new API structure ──
-        final operatorData = responseData['operator'];
-        if (operatorData != null) {
-          await prefs.setString('operator_id_db', operatorData['id'] ?? '');
-          await prefs.setString('operator_email', operatorData['email'] ?? '');
-          await prefs.setString('operator_role', operatorData['role'] ?? '');
-          await prefs.setString('exam_id', operatorData['examId'] ?? '');
-          await prefs.setString('shift_id', operatorData['shiftId'] ?? '');
-          await prefs.setString('center_id', operatorData['centerId'] ?? '');
-          await prefs.setString('center_code', operatorData['centerCode'] ?? '');
-          await prefs.setString('center_name', operatorData['centerName'] ?? '');
+        // ── Save operator / exam / shift / center ──
+        final op = responseData['operator'];
+        if (op != null) {
+          await StorageService.to.setString(StorageService.keyOperatorIdDb, op['id'] ?? '');
+          await StorageService.to.setString(StorageService.keyOperatorEmail, op['email'] ?? '');
+          await StorageService.to.setString('operator_role', op['role'] ?? '');
+          await StorageService.to.setString('exam_id', op['examId'] ?? '');
+          await StorageService.to.setString('shift_id', op['shiftId'] ?? '');
+          await StorageService.to.setString('center_id', op['centerId'] ?? '');
+          await StorageService.to.setString(StorageService.keyCenterCode, op['centerCode'] ?? '');
+          await StorageService.to.setString(StorageService.keyCenterName, op['centerName'] ?? '');
         }
 
         final examData = responseData['exam'];
         if (examData != null) {
-          await prefs.setString('exam_id', examData['id'] ?? prefs.getString('exam_id') ?? '');
-          await prefs.setString('exam_name', examData['examName'] ?? '');
+          await StorageService.to.setString('exam_id', examData['id'] ?? StorageService.to.getString('exam_id') ?? '');
+          await StorageService.to.setString(StorageService.keyExamName, examData['examName'] ?? '');
         }
 
         final shiftData = responseData['shift'];
         if (shiftData != null) {
-          await prefs.setString('shift_id', shiftData['id'] ?? prefs.getString('shift_id') ?? '');
-          await prefs.setString('shift', shiftData['shift'] ?? '');
-          await prefs.setString('shift_start_time', shiftData['shiftStart'] ?? '');
-          await prefs.setString('shift_end_time', shiftData['shiftEnd'] ?? '');
+          await StorageService.to.setString('shift_id', shiftData['id'] ?? StorageService.to.getString('shift_id') ?? '');
+          await StorageService.to.setString(StorageService.keyShift, shiftData['shift'] ?? '');
+          await StorageService.to.setString(StorageService.keyShiftStartTime, shiftData['shiftStart'] ?? '');
+          await StorageService.to.setString(StorageService.keyShiftEndTime, shiftData['shiftEnd'] ?? '');
           shiftStart.value = shiftData['shiftStart'] ?? '';
           shiftEnd.value = shiftData['shiftEnd'] ?? '';
           shift.value = shiftData['shift'] ?? '';
@@ -144,51 +130,44 @@ class DownloadController extends GetxController {
 
         final centerData = responseData['center'];
         if (centerData != null) {
-          await prefs.setString('center_id', centerData['id'] ?? prefs.getString('center_id') ?? '');
-          await prefs.setString('center_name', centerData['centerName'] ?? '');
-          await prefs.setString('center_code', centerData['centerCode'] ?? '');
-          await prefs.setString('center_state', centerData['centerState'] ?? '');
-          await prefs.setString('center_district', centerData['centerDistrict'] ?? '');
+          await StorageService.to.setString('center_id', centerData['id'] ?? StorageService.to.getString('center_id') ?? '');
+          await StorageService.to.setString(StorageService.keyCenterName, centerData['centerName'] ?? '');
+          await StorageService.to.setString(StorageService.keyCenterCode, centerData['centerCode'] ?? '');
+          await StorageService.to.setString('center_state', centerData['centerState'] ?? '');
+          await StorageService.to.setString('center_district', centerData['centerDistrict'] ?? '');
           if (centerData['centerCapacity'] != null) {
-            await prefs.setInt('center_capacity', centerData['centerCapacity']);
+            await StorageService.to.setInt(StorageService.keyCenterCapacity, centerData['centerCapacity']);
           }
           centerCode.value = centerData['centerCode'] ?? centerCode.value;
           centerName.value = centerData['centerName'] ?? centerName.value;
         }
 
-        // ── Save socket info for real‑time updates ──
+        // ── Save socket info ──
         final socketInfo = responseData['socket'];
         if (socketInfo != null) {
-          await prefs.setString('socket_room', socketInfo['room'] ?? '');
-          await prefs.setString('socket_event', socketInfo['event'] ?? 'attendance-completed');
-          // Initialize SocketService and join the room
+          await StorageService.to.setString('socket_room', socketInfo['room'] ?? '');
+          await StorageService.to.setString('socket_event', socketInfo['event'] ?? 'attendance-completed');
           try {
-            // Ensure the service is registered only once
-            if (!Get.isRegistered<SocketService>()) {
-              Get.put(SocketService());
-            }
+            if (!Get.isRegistered<SocketService>()) Get.put(SocketService());
             await SocketService.to.connectAndJoinRoom(
               room: socketInfo['room'] ?? '',
               event: socketInfo['event'] ?? 'attendance-completed',
-              token: token ?? '',
+              token: StorageService.to.getToken() ?? '',
             );
           } catch (e) {
             print('[DownloadController] Socket init error: $e');
           }
         }
 
-        // Also persist downloadInfo stats for reference
-        final downloadInfo = responseData['downloadInfo'];
-        if (downloadInfo != null) {
-          await prefs.setInt('total_students', downloadInfo['totalStudents'] ?? 0);
+        if (responseData['downloadInfo'] != null) {
+          final info = responseData['downloadInfo'];
+          await StorageService.to.setInt(StorageService.keyGlobalTotal, info['totalStudents'] ?? 0);
+          await StorageService.to.setInt(StorageService.keyGlobalPresent, info['completed'] ?? 0);
+          await StorageService.to.setInt(StorageService.keyGlobalAbsent, info['pending'] ?? 0);
+          await StorageService.to.setInt('total_students', info['totalStudents'] ?? 0);
         }
 
-        List<dynamic> candidates = [];
-        if (responseData['students'] != null) {
-          candidates = responseData['students'];
-        } else if (responseData['data'] != null) {
-          candidates = responseData['data'];
-        }
+        List<dynamic> candidates = responseData['students'] ?? responseData['data'] ?? [];
 
         if (candidates.isEmpty) {
           Get.snackbar("Info", "No candidates found for this session.");
@@ -198,28 +177,19 @@ class DownloadController extends GetxController {
 
         var box = Hive.box('candidates_box');
         await box.clear();
-
         List<Map<String, dynamic>> studentList = candidates.map((e) => Map<String, dynamic>.from(e)).toList();
         await box.addAll(studentList);
         downloadProgress.value = 1.0;
         totalStudents.value = box.length;
 
-        Get.snackbar(
-          "Success",
-          "Downloaded ${box.length} candidates successfully.",
-          backgroundColor: Colors.greenAccent,
-        );
-
-        // Cache images in background without blocking session setup
+        showSuccess("Success", "Downloaded ${box.length} candidates successfully.");
         _cacheImagesInBackground(studentList);
       } else {
-        Get.snackbar("Error", "Failed to download data: ${response.reasonPhrase}",
-            backgroundColor: Colors.redAccent, colorText: Colors.white);
+        showError("Failed to download data: ${response.reasonPhrase}");
       }
     } catch (e) {
       print("Download Error: $e");
-      Get.snackbar("Error", "An error occurred: $e",
-          backgroundColor: Colors.redAccent, colorText: Colors.white);
+      showError("An error occurred: $e");
     } finally {
       isDownloading.value = false;
     }
@@ -232,54 +202,24 @@ class DownloadController extends GetxController {
         var student = Map<String, dynamic>.from(candidates[i]);
         bool modified = false;
 
-        if (student['photo'] != null && student['photo'].toString().startsWith('http')) {
-          String imageName = 'student_${student['rollNo'] ?? student['id']}';
-          String? localPath = await getBitmapFromNetwork(student['photo'], imageName);
-          if (localPath != null) {
-            student['localPhotoPath'] = localPath;
-            modified = true;
+        Future<void> updateImg(String key, String localKey, String namePrefix) async {
+           if (student[key] != null && student[key].toString().startsWith('http')) {
+            String name = '${namePrefix}_${student['rollNo'] ?? student['id']}';
+            String? localPath = await getBitmapFromNetwork(student[key], name);
+            if (localPath != null) {
+              student[localKey] = localPath;
+              modified = true;
+            }
           }
         }
 
-        if (student['thumbnail'] != null && student['thumbnail'].toString().startsWith('http')) {
-          String thumbName = 'thumb_${student['rollNo'] ?? student['id']}';
-          String? localThumb = await getBitmapFromNetwork(student['thumbnail'], thumbName);
-          if (localThumb != null) {
-            student['localThumbPath'] = localThumb;
-            modified = true;
-          }
-        }
+        await updateImg('photo', 'localPhotoPath', 'student');
+        await updateImg('thumbnail', 'localThumbPath', 'thumb');
+        await updateImg('livePhoto', 'localLivePhotoPath', 'live_photo');
+        await updateImg('leftThumb', 'localLeftThumbPath', 'left_thumb');
+        await updateImg('rightThumb', 'localRightThumbPath', 'right_thumb');
 
-        if (student['livePhoto'] != null && student['livePhoto'].toString().startsWith('http')) {
-          String imageName = 'live_photo_${student['rollNo'] ?? student['id']}';
-          String? localPath = await getBitmapFromNetwork(student['livePhoto'], imageName);
-          if (localPath != null) {
-            student['localLivePhotoPath'] = localPath;
-            modified = true;
-          }
-        }
-
-        if (student['leftThumb'] != null && student['leftThumb'].toString().startsWith('http')) {
-          String thumbName = 'left_thumb_${student['rollNo'] ?? student['id']}';
-          String? localThumb = await getBitmapFromNetwork(student['leftThumb'], thumbName);
-          if (localThumb != null) {
-            student['localLeftThumbPath'] = localThumb;
-            modified = true;
-          }
-        }
-
-        if (student['rightThumb'] != null && student['rightThumb'].toString().startsWith('http')) {
-          String thumbName = 'right_thumb_${student['rollNo'] ?? student['id']}';
-          String? localThumb = await getBitmapFromNetwork(student['rightThumb'], thumbName);
-          if (localThumb != null) {
-            student['localRightThumbPath'] = localThumb;
-            modified = true;
-          }
-        }
-
-        if (modified && i < box.length) {
-          await box.putAt(i, student);
-        }
+        if (modified && i < box.length) await box.putAt(i, student);
       }
     } catch (e) {
       print("Background image cache completed: $e");

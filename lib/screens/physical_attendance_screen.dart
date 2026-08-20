@@ -110,7 +110,6 @@ class PhysicalAttendanceScreen extends StatelessWidget {
                       File file = controller.selectedFiles[index];
                       String ext = file.path.split('.').last.toLowerCase();
                       bool isImage = ['jpg', 'jpeg', 'png'].contains(ext);
-
                       return Card(
                         color: Theme.of(context).cardTheme.color,
                         elevation: 0,
@@ -149,17 +148,17 @@ class PhysicalAttendanceScreen extends StatelessWidget {
                 height: 50,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12),
-                  gradient: controller.isLoading.value ? null : const LinearGradient(colors: [Color(0xFF1976D2), Color(0xFF2196F3)]),
-                  color: controller.isLoading.value ? Colors.grey : null,
+                  gradient: controller.isLoading ? null : const LinearGradient(colors: [Color(0xFF1976D2), Color(0xFF2196F3)]),
+                  color: controller.isLoading ? Colors.grey : null,
                 ),
                 child: ElevatedButton(
-                  onPressed: controller.isLoading.value ? null : controller.submitAttendance,
+                  onPressed: controller.isLoading ? null : controller.submitAttendance,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.transparent,
                     shadowColor: Colors.transparent,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
-                  child: controller.isLoading.value
+                  child: controller.isLoading
                       ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                       : Text("UPLOAD ALL", style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
                 ),

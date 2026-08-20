@@ -188,7 +188,7 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    _loginController.login(email: userId, password: password);
+    _loginController.login(operatorId: userId, password: password);
   }
 
   Widget _buildMiniCheck(String label, bool status, VoidCallback onTap) {

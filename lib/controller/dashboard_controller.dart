@@ -21,6 +21,16 @@ class DashboardController extends GetxController {
   final RxString fatherName = ''.obs;
   final RxString centerCapacity = ''.obs;
 
+  // Global Stats
+  final RxInt globalTotal = 0.obs;
+  final RxInt globalPresent = 0.obs;
+  final RxInt globalAbsent = 0.obs;
+
+  // Local Device Stats
+  final RxInt localTotal = 0.obs;
+  final RxInt localPresent = 0.obs;
+  final RxInt localAbsent = 0.obs;
+
   StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
   bool _isBackgroundSyncRunning = false;
 
@@ -52,17 +62,36 @@ class DashboardController extends GetxController {
   }
 
   void getStoredData() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    centerCode.value = prefs.getString('center_code') ?? 'No Code Found';
-    centerName.value = prefs.getString('center_name') ?? 'No Name Found';
-    examName.value = prefs.getString('exam_name') ?? '';
-    operatorName.value = prefs.getString('operator_name') ?? 'N/A';
-    operatorPhone.value = prefs.getString('operator_phone') ?? 'N/A';
-    operatorEmail.value = prefs.getString('operator_email') ?? 'N/A';
-    operatorCityState.value = prefs.getString('operator_city_state') ?? 'N/A';
-    fatherName.value = prefs.getString('father_name') ?? 'N/A';
-    int? capacity = prefs.getInt('center_capacity');
+    centerCode.value = StorageService.to.getString(StorageService.keyCenterCode) ?? 'No Code Found';
+    centerName.value = StorageService.to.getString(StorageService.keyCenterName) ?? 'No Name Found';
+    examName.value = StorageService.to.getString(StorageService.keyCenterName) ?? ''; // Using center name as school name if exam name empty
+    
+    // Check if actual exam name exists
+    String? storedExam = StorageService.to.getString(StorageService.keyExamName);
+    if(storedExam != null && storedExam.isNotEmpty) examName.value = storedExam;
+
+    operatorName.value = StorageService.to.getString(StorageService.keyOperatorName) ?? 'N/A';
+    operatorPhone.value = StorageService.to.getString(StorageService.keyOperatorPhone) ?? 'N/A';
+    operatorEmail.value = StorageService.to.getString(StorageService.keyOperatorEmail) ?? 'N/A';
+    operatorCityState.value = StorageService.to.getString(StorageService.keyOperatorCityState) ?? 'N/A';
+    fatherName.value = StorageService.to.getString(StorageService.keyFatherName) ?? 'N/A';
+    
+    int? capacity = StorageService.to.getInt(StorageService.keyCenterCapacity);
     centerCapacity.value = capacity != null ? capacity.toString() : 'N/A';
+
+    // Global Stats from API response
+    globalTotal.value = StorageService.to.getInt(StorageService.keyGlobalTotal) ?? 0;
+    globalPresent.value = StorageService.to.getInt(StorageService.keyGlobalPresent) ?? 0;
+    globalAbsent.value = StorageService.to.getInt(StorageService.keyGlobalAbsent) ?? 0;
+
+    refreshLocalStats();
+  }
+
+  void refreshLocalStats() {
+    var box = Hive.box('candidates_box');
+    localTotal.value = box.length;
+    localPresent.value = box.values.where((s) => (s as Map)['attendanceStatus'] == true).length;
+    localAbsent.value = localTotal.value - localPresent.value;
   }
 
   String _formatBase64Size(String base64String) {

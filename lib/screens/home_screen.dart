@@ -28,14 +28,20 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final Color navBarColor = isDark ? const Color(0xFF0F172A) : Colors.white;
+    final Color selectedColor = Theme.of(context).primaryColor;
+    final Color unselectedColor = isDark ? Colors.white54 : Colors.grey.shade500;
+
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: _screens[_selectedIndex],
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
+          color: navBarColor,
           border: Border(
             top: BorderSide(
-              color: Colors.grey.shade300,
+              color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey.shade300,
               width: 1.0,
             ),
           ),
@@ -43,9 +49,10 @@ class _HomeScreenState extends State<HomeScreen> {
         child: BottomNavigationBar(
           currentIndex: _selectedIndex,
           onTap: _onItemTapped,
-          backgroundColor: Colors.white,
-          selectedItemColor: const Color(0xFF2196F3),
-          unselectedItemColor: Colors.grey.shade500,
+          backgroundColor: navBarColor,
+          elevation: 0,
+          selectedItemColor: selectedColor,
+          unselectedItemColor: unselectedColor,
           selectedLabelStyle: GoogleFonts.outfit(
             fontWeight: FontWeight.bold,
             letterSpacing: 0.8,
