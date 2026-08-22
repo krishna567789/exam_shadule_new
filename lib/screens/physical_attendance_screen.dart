@@ -117,6 +117,7 @@ class PhysicalAttendanceScreen extends StatelessWidget {
                           borderRadius: BorderRadius.circular(8),
                           side: BorderSide(color: Theme.of(context).dividerColor.withOpacity(0.1)),
                         ),
+
                         margin: const EdgeInsets.only(bottom: 8),
                         child: ListTile(
                           contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),

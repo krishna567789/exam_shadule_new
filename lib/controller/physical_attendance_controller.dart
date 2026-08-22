@@ -57,26 +57,29 @@ class PhysicalAttendanceController extends BaseController {
 
     try {
       showLoading();
-      
+
       String operatorId = StorageService.to.getLoginOperatorId() ?? "";
 
-      var request = await ApiService.to.multipartRequest(ApiService.urlPhysicalAttendance);
-      request.fields['operatorId'] = operatorId;
+      var request = await ApiService.to
+          .multipartRequest(ApiService.urlPhysicalAttendance);
+      // request.fields['operatorId'] = operatorId;
       request.fields['remarks'] = remarksController.text.trim();
 
       for (var file in selectedFiles) {
         String fileName = file.path.split('/').last;
-        request.files.add(await http.MultipartFile.fromPath('file', file.path, filename: fileName));
+        print('filename: ${fileName}');
+        print('file.path: ${file.path}');
+        request.files.add(await http.MultipartFile.fromPath('files', file.path,
+            filename: fileName));
       }
 
       print("--- PHYSICAL ATTENDANCE REQUEST ---");
+      print("URL: ${request.url}");
       print("Fields: ${request.fields}");
-      
+      print("Files: ${request.files.map((f) => f.filename).toList()}");
       var streamedResponse = await request.send();
       var response = await http.Response.fromStream(streamedResponse);
-
       hideLoading();
-
       print("--- PHYSICAL ATTENDANCE RESPONSE ---");
       print("Status Code: ${response.statusCode}");
       print("Response Body: ${response.body}");
@@ -85,9 +88,11 @@ class PhysicalAttendanceController extends BaseController {
         showSuccess('Success', 'Physical attendance uploaded successfully.');
         selectedFiles.clear();
         remarksController.clear();
+        Get.back();
       } else {
         var errorData = json.decode(response.body);
-        showError(errorData['message'] ?? 'Upload failed: ${response.reasonPhrase}');
+        showError(
+            errorData['message'] ?? 'Upload failed: ${response.reasonPhrase}');
       }
     } catch (e) {
       hideLoading();

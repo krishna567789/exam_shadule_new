@@ -17,7 +17,8 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  final DashboardController _dashboardController = Get.put(DashboardController());
+  final DashboardController _dashboardController =
+      Get.put(DashboardController());
   final DownloadController _downloadController = Get.put(DownloadController());
   final LoginController _loginController = Get.find<LoginController>();
 
@@ -45,7 +46,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const SizedBox(height: 16),
               Text(
                 "Confirm Logout",
-                style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold),
+                style: GoogleFonts.outfit(
+                    fontSize: 20, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 12),
               const Text(
@@ -65,12 +67,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                      style:
+                          ElevatedButton.styleFrom(backgroundColor: Colors.red),
                       onPressed: () {
                         Get.back();
                         _loginController.logout();
                       },
-                      child: const Text("LOGOUT", style: TextStyle(color: Colors.white)),
+                      child: const Text("LOGOUT",
+                          style: TextStyle(color: Colors.white)),
                     ),
                   ),
                 ],
@@ -86,40 +90,47 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     const Color primaryColor = Color(0xFF10B981); // Teal color from image
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    
+
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF0F172A) : Colors.grey.shade50,
       appBar: AppBar(
-        backgroundColor: primaryColor,
+        backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: const Icon(Icons.menu, color: Colors.white),
+        leading: Icon(Icons.menu,
+            color: Theme.of(context).textTheme.titleLarge?.color),
         title: Row(
           children: [
-            const Icon(Icons.flag, color: Colors.white, size: 20),
+            Icon(Icons.flag,
+                color: Theme.of(context).textTheme.titleLarge?.color, size: 20),
             const SizedBox(width: 8),
             Expanded(
               child: Obx(() => Text(
-                _dashboardController.centerName.value,
-                style: GoogleFonts.outfit(color: Colors.white, fontSize: 14),
-                overflow: TextOverflow.ellipsis,
-              )),
+                    _dashboardController.centerName.value,
+                    style: GoogleFonts.outfit(
+                        color: Theme.of(context).textTheme.titleLarge?.color,
+                        fontSize: 14),
+                    overflow: TextOverflow.ellipsis,
+                  )),
             ),
           ],
         ),
         actions: [
           IconButton(
-            icon: Icon(isDark ? Icons.light_mode : Icons.dark_mode, color: Colors.white),
-            onPressed: () => Get.changeTheme(isDark ? AppTheme.lightTheme : AppTheme.darkTheme),
+            icon: Icon(isDark ? Icons.light_mode : Icons.dark_mode,
+                color: Theme.of(context).textTheme.titleLarge?.color),
+            onPressed: () => Get.changeTheme(
+                isDark ? AppTheme.lightTheme : AppTheme.darkTheme),
           ),
           IconButton(
-            icon: const Icon(Icons.logout, color: Colors.white),
+            icon: Icon(Icons.logout,
+                color: Theme.of(context).textTheme.titleLarge?.color),
             onPressed: _showLogoutDialog,
           ),
         ],
       ),
       body: Obx(() {
         _dashboardController.refreshLocalStats();
-        
+
         return SingleChildScrollView(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -131,11 +142,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildAppDetailRow("Exam Name:", _dashboardController.examName.value),
+                    _buildAppDetailRow(
+                        "Exam Name:", _dashboardController.examName.value),
                     const SizedBox(height: 8),
-                    _buildAppDetailRow("Centre Code:", _dashboardController.centerCode.value),
+                    _buildAppDetailRow(
+                        "Centre Code:", _dashboardController.centerCode.value),
                     const SizedBox(height: 8),
-                    _buildAppDetailRow("Shift:", StorageService.to.getString(StorageService.keyShift) ?? "1"),
+                    _buildAppDetailRow(
+                        "Shift:",
+                        StorageService.to.getString(StorageService.keyShift) ??
+                            "1"),
                   ],
                 ),
               ),
@@ -145,9 +161,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
               _buildSectionTitle("Candidate Summary"),
               Row(
                 children: [
-                  _buildStatCard("Total", _dashboardController.globalTotal.value.toString(), const Color(0xFF4F46E5)),
-                  _buildStatCard("Present", _dashboardController.globalPresent.value.toString(), const Color(0xFF10B981)),
-                  _buildStatCard("Absent", _dashboardController.globalAbsent.value.toString(), const Color(0xFFEF4444)),
+                  _buildStatCard(
+                      "Total",
+                      _dashboardController.globalTotal.value.toString(),
+                      const Color(0xFF4F46E5)),
+                  _buildStatCard(
+                      "Present",
+                      _dashboardController.globalPresent.value.toString(),
+                      const Color(0xFF10B981)),
+                  _buildStatCard(
+                      "Absent",
+                      _dashboardController.globalAbsent.value.toString(),
+                      const Color(0xFFEF4444)),
                 ],
               ),
               const SizedBox(height: 24),
@@ -156,24 +181,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
               _buildSectionTitle("This Device Summary"),
               Row(
                 children: [
-                  _buildStatCard("Total", _dashboardController.localTotal.value.toString(), const Color(0xFF4F46E5)),
                   _buildStatCard(
-                    "Present", 
-                    _dashboardController.localPresent.value.toString(), 
+                      "Total",
+                      _dashboardController.localTotal.value.toString(),
+                      const Color(0xFF4F46E5)),
+                  _buildStatCard(
+                    "Present",
+                    _dashboardController.localPresent.value.toString(),
                     const Color(0xFF10B981),
                     showArrow: true,
                   ),
                   _buildStatCard(
-                    "Absent", 
-                    _dashboardController.localAbsent.value.toString(), 
+                    "Absent",
+                    _dashboardController.localAbsent.value.toString(),
                     const Color(0xFFEF4444),
                     showArrow: true,
                   ),
                 ],
               ),
-              
+
               const SizedBox(height: 32),
-              
+
               // Sync Action
               Center(
                 child: Column(
@@ -186,27 +214,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton.icon(
-                        onPressed: _dashboardController.isLoading.value ? null : _startSync,
+                        onPressed: _dashboardController.isLoading.value
+                            ? null
+                            : _startSync,
                         icon: const Icon(Icons.sync, color: Colors.white),
                         label: Text(
-                          _dashboardController.isLoading.value ? "UPLOADING..." : "SYNC PENDING DATA",
-                          style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
+                          _dashboardController.isLoading.value
+                              ? "UPLOADING..."
+                              : "SYNC PENDING DATA",
+                          style: GoogleFonts.outfit(
+                              color: Colors.white, fontWeight: FontWeight.bold),
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF1976D2),
                           padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10)),
                         ),
                       ),
                     ),
                     const SizedBox(height: 12),
                     OutlinedButton.icon(
-                      onPressed: () => Get.to(() => const PhysicalAttendanceScreen()),
+                      onPressed: () => Get.to(() => PhysicalAttendanceScreen()),
                       icon: const Icon(Icons.upload_file),
                       label: const Text("PHYSICAL ATTENDANCE"),
                       style: OutlinedButton.styleFrom(
                         minimumSize: const Size(double.infinity, 48),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
                       ),
                     ),
                   ],
@@ -241,20 +276,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
           width: 100,
           child: Text(
             label,
-            style: GoogleFonts.outfit(fontSize: 14, color: Colors.grey.shade600),
+            style:
+                GoogleFonts.outfit(fontSize: 14, color: Colors.grey.shade600),
           ),
         ),
         Expanded(
           child: Text(
             value,
-            style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w600),
+            style:
+                GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w600),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildStatCard(String label, String value, Color valueColor, {bool showArrow = false}) {
+  Widget _buildStatCard(String label, String value, Color valueColor,
+      {bool showArrow = false}) {
     return Expanded(
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 4),
@@ -262,7 +300,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         decoration: BoxDecoration(
           color: Theme.of(context).cardTheme.color,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Theme.of(context).dividerColor.withOpacity(0.1)),
+          border: Border.all(
+              color: Theme.of(context).dividerColor.withOpacity(0.1)),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.02),
@@ -290,19 +329,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 color: valueColor,
               ),
             ),
-            if (showArrow) ...[
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    "Full details",
-                    style: GoogleFonts.outfit(fontSize: 9, color: Colors.grey),
-                  ),
-                  const Icon(Icons.arrow_forward, size: 10, color: Colors.grey),
-                ],
-              ),
-            ],
           ],
         ),
       ),
@@ -316,7 +342,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       decoration: BoxDecoration(
         color: Theme.of(context).cardTheme.color,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Theme.of(context).dividerColor.withOpacity(0.1)),
+        border:
+            Border.all(color: Theme.of(context).dividerColor.withOpacity(0.1)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.02),

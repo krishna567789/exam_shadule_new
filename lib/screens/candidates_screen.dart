@@ -878,41 +878,57 @@ class _CandidatesScreenState extends State<CandidatesScreen> {
                         const SizedBox(height: 20),
                         _buildFilterLabel("Attendance Status"),
                         const SizedBox(height: 12),
-                        Wrap(
-                          spacing: 8,
-                          children: ["All", "Present", "Absent"].map((status) {
-                            final isSelected = _statusFilter == status;
-                            return _buildFilterChip(
-                              label: status,
-                              isSelected: isSelected,
-                              onSelected: (selected) {
-                                setModalState(() {
-                                  _statusFilter = status;
-                                });
-                                setState(() {});
-                              },
-                            );
-                          }).toList(),
-                        ),
+                        ...["All", "Present", "Absent"].map((status) {
+                          final isSelected = _statusFilter == status;
+                          return RadioListTile<String>(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(
+                              status,
+                              style: GoogleFonts.outfit(
+                                fontSize: 14,
+                                color: isSelected ? primaryColor : (isDark ? Colors.white70 : Colors.black87),
+                                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                              ),
+                            ),
+                            value: status,
+                            groupValue: _statusFilter,
+                            onChanged: (value) {
+                              setModalState(() {
+                                _statusFilter = value!;
+                              });
+                              setState(() {});
+                            },
+                            activeColor: primaryColor,
+                            dense: true,
+                          );
+                        }).toList(),
                         const SizedBox(height: 24),
                         _buildFilterLabel("Sync Status"),
                         const SizedBox(height: 12),
-                        Wrap(
-                          spacing: 8,
-                          children: ["All", "Synced", "Pending"].map((status) {
-                            final isSelected = _syncFilter == status;
-                            return _buildFilterChip(
-                              label: status,
-                              isSelected: isSelected,
-                              onSelected: (selected) {
-                                setModalState(() {
-                                  _syncFilter = status;
-                                });
-                                setState(() {});
-                              },
-                            );
-                          }).toList(),
-                        ),
+                        ...["All", "Synced", "Pending"].map((status) {
+                          final isSelected = _syncFilter == status;
+                          return RadioListTile<String>(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(
+                              status,
+                              style: GoogleFonts.outfit(
+                                fontSize: 14,
+                                color: isSelected ? primaryColor : (isDark ? Colors.white70 : Colors.black87),
+                                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                              ),
+                            ),
+                            value: status,
+                            groupValue: _syncFilter,
+                            onChanged: (value) {
+                              setModalState(() {
+                                _syncFilter = value!;
+                              });
+                              setState(() {});
+                            },
+                            activeColor: primaryColor,
+                            dense: true,
+                          );
+                        }).toList(),
                         const SizedBox(height: 24),
                         _buildFilterLabel("Filter by Date Range"),
                         const SizedBox(height: 12),

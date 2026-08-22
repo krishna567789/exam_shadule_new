@@ -37,10 +37,6 @@ class _OperatorProfileScreenState extends State<OperatorProfileScreen> {
 
       setState(() {
         _profileController.operatorIdController.text = prefs.getString('operator_email') ?? "";
-        _profileController.emailController.text =
-            _profileController.emailController.text.isNotEmpty
-                ? _profileController.emailController.text
-                : (prefs.getString('operator_email') ?? "");
         _profileController.nameController.text =
             prefs.getString('operator_name') ?? "";
         _profileController.fatherController.text =

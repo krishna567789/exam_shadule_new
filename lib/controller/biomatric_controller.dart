@@ -22,6 +22,7 @@ class BiometricController extends ChangeNotifier {
     PermissionStatus location = await Permission.location.status;
 
     // Request permissions if not granted
+    
 
     if (!camera.isGranted || !location.isGranted) {
       await Permission.camera.request();
