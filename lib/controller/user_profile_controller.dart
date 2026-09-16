@@ -11,10 +11,19 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../models/operator_profile_model.dart';
+import '../services/api_service.dart';
+import '../services/storage_service.dart';
+
 class UserProfileController extends GetxController {
   var profileImage = Rxn<File>();
   var frontImage = Rxn<File>();
   var backImage = Rxn<File>();
+
+  var photoUrl = ''.obs;
+  var aadharFrontUrl = ''.obs;
+  var aadharBackUrl = ''.obs;
+  var isProfileLoading = false.obs;
 
   final nameController = TextEditingController();
   final fatherController = TextEditingController();
@@ -31,48 +40,41 @@ class UserProfileController extends GetxController {
 
   Future<void> fetchOperatorDetails() async {
     try {
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      String? token = prefs.getString('token');
-      String? operatorId = prefs.getString('operator_id_db');
+      isProfileLoading.value = true;
+      print("--- FETCHING OPERATOR DETAILS (MY-PROFILE) ---");
+      final response = await ApiService.to.getMyProfile();
 
-      if (operatorId == null || operatorId.isEmpty) return;
-
-      print("--- FETCHING OPERATOR DETAILS ---");
-      final response = await http.get(
-        Uri.parse(
-            'https://bio.ubroapi.space/api/operator-users/$operatorId/details'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-        },
-      );
-
-      print("Details Response: ${response.body}");
+      print("My Profile Response (${response.statusCode}): ${response.body}");
 
       if (response.statusCode == 200) {
         var responseData = json.decode(response.body);
-        if (responseData['status'] == true && responseData['data'] != null) {
-          var profile = responseData['data']['profile'];
-          if (profile != null) {
-            nameController.text = profile['name'] ?? "";
-            fatherController.text = profile['fatherName'] ?? "";
-            mobileController.text = profile['mobileNumber'] ?? "";
-            emailController.text = profile['email'] ?? "";
-            cityController.text = profile['city'] ?? "";
-            stateController.text = profile['state'] ?? "";
-            addressController.text = profile['address'] ?? "";
-
-            // Save updated info to SharedPreferences
-            await prefs.setString('operator_name', nameController.text);
-            await prefs.setString('father_name', fatherController.text);
-            await prefs.setString('operator_phone', mobileController.text);
-            await prefs.setString('operator_city_state',
-                "${cityController.text}, ${stateController.text}");
+        var res = OperatorProfileResponse.fromJson(responseData);
+        if (res.status && res.data?.profile != null) {
+          var profile = res.data!.profile!;
+          nameController.text = profile.name;
+          fatherController.text = profile.fatherName;
+          mobileController.text = profile.mobileNumber;
+          emailController.text = profile.email;
+          cityController.text = profile.city;
+          stateController.text = profile.state;
+          addressController.text = profile.address;
+          if (profile.operatorId.isNotEmpty) {
+            operatorIdController.text = profile.operatorId;
           }
+
+          photoUrl.value = profile.photo;
+          aadharFrontUrl.value = profile.aadharFront;
+          aadharBackUrl.value = profile.aadharBack;
+
+          // Save to StorageService
+          await StorageService.to.saveOperatorProfile(profile);
+          await StorageService.to.setBool(StorageService.keyIsProfileCompleted, res.profileCompleted);
         }
       }
     } catch (e) {
       print("Error fetching details: $e");
+    } finally {
+      isProfileLoading.value = false;
     }
   }
 
@@ -196,15 +198,14 @@ class UserProfileController extends GetxController {
       if (response.statusCode == 200 || response.statusCode == 201) {
         await prefs.setBool('is_profile_completed', true);
         await prefs.setBool('is_logged_in',
-            true); // SET LOGGED IN STATUS AFTER PROFILE CREATION
+            true);
         await prefs.setString('operator_name', nameController.text.trim());
         await prefs.setString('father_name', fatherController.text.trim());
         await prefs.setString('operator_phone', mobileController.text.trim());
         await prefs.setString('operator_city_state',
             "${cityController.text.trim()}, ${stateController.text.trim()}");
-
-        Get.snackbar('Success', 'Profile created successfully!',
-            backgroundColor: Colors.greenAccent);
+        await StorageService.to.setString(StorageService.keyCenterCode, json.decode(response.body)['data']['centerCode']);
+        Get.snackbar('Success', 'Profile created successfully!',backgroundColor: Colors.greenAccent);
         Get.offAll(() => const SessionSetupScreen());
       } else {
         var errorData = json.decode(response.body);

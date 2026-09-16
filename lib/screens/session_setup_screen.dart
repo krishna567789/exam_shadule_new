@@ -1,3 +1,4 @@
+import 'package:exam_shadule_new/services/storage_service.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../utils/app_theme.dart';
@@ -99,24 +100,24 @@ class _SessionSetupScreenState extends State<SessionSetupScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 6),
-                Obx(
-                  () => Text(
-                    _dashboardController.examName.value.isNotEmpty
-                        ? 'Exam: ${_dashboardController.examName.value}'
-                        : 'Confirm center details and sync data before proceeding.',
-                    style: GoogleFonts.outfit(
-                      fontSize: 14,
-                      color: _dashboardController.examName.value.isNotEmpty
-                          ? Colors.blue.shade800
-                          : textMuted,
-                      fontWeight: _dashboardController.examName.value.isNotEmpty
-                          ? FontWeight.bold
-                          : FontWeight.normal,
-                      letterSpacing: 1.0,
-                    ),
-                  ),
-                ),
+                // const SizedBox(height: 6),
+                // Obx(
+                //   () => Text(
+                //     _dashboardController.examName.value.isNotEmpty
+                //         ? 'Exam: ${_dashboardController.examName.value}'
+                //         : 'Confirm center details and sync data before proceeding.',
+                //     style: GoogleFonts.outfit(
+                //       fontSize: 14,
+                //       color: _dashboardController.examName.value.isNotEmpty
+                //           ? Colors.blue.shade800
+                //           : textMuted,
+                //       fontWeight: _dashboardController.examName.value.isNotEmpty
+                //           ? FontWeight.bold
+                //           : FontWeight.normal,
+                //       letterSpacing: 1.0,
+                //     ),
+                //   ),
+                // ),
                 const SizedBox(height: 10),
 
                 // Center Details Card
@@ -153,11 +154,20 @@ class _SessionSetupScreenState extends State<SessionSetupScreen> {
                                   ),
                                 ),
                                 const SizedBox(height: 2),
-                                Obx(
-                                  () => Text(
-                                    _dashboardController
-                                            .centerCode.value.isNotEmpty
-                                        ? _dashboardController.centerCode.value
+                                Obx(() {
+                                  String code =
+                                      _dashboardController.centerCode.value;
+                                  if (code.isEmpty || code == 'No Code Found') {
+                                    code = _downloadController.centerCode.value;
+                                  }
+                                  if (code.isEmpty || code == 'No Code Found') {
+                                    code = StorageService.to.getString(
+                                            StorageService.keyCenterCode) ??
+                                        '';
+                                  }
+                                  return Text(
+                                    code.isNotEmpty && code != 'No Code Found'
+                                        ? code
                                         : 'N/A',
                                     style: GoogleFonts.outfit(
                                       fontSize: 16,
@@ -168,8 +178,8 @@ class _SessionSetupScreenState extends State<SessionSetupScreen> {
                                           ?.color,
                                     ),
                                     overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
+                                  );
+                                }),
                               ],
                             ),
                           ),
@@ -191,18 +201,27 @@ class _SessionSetupScreenState extends State<SessionSetupScreen> {
                         ),
                       ),
                       const SizedBox(height: 4),
-                      Obx(
-                        () => Text(
-                          _dashboardController.centerName.value.isNotEmpty
-                              ? _dashboardController.centerName.value
-                              : 'Loading...',
+                      Obx(() {
+                        String name = _dashboardController.centerName.value;
+                        if (name.isEmpty || name == 'No Name Found') {
+                          name = _downloadController.centerName.value;
+                        }
+                        if (name.isEmpty || name == 'No Name Found') {
+                          name = StorageService.to
+                                  .getString(StorageService.keyCenterName) ??
+                              '';
+                        }
+                        return Text(
+                          name.isNotEmpty && name != 'No Name Found'
+                              ? name
+                              : 'N/A',
                           style: GoogleFonts.outfit(
                             fontSize: 15,
                             fontWeight: FontWeight.bold,
                             color: Theme.of(context).textTheme.bodyLarge?.color,
                           ),
-                        ),
-                      ),
+                        );
+                      }),
                       const SizedBox(height: 10),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -248,11 +267,26 @@ class _SessionSetupScreenState extends State<SessionSetupScreen> {
                                               overflow: TextOverflow.ellipsis,
                                             );
                                           }
+                                          String shiftText =
+                                              _downloadController.shift.value;
+                                          if (shiftText.isEmpty ||
+                                              shiftText == 'N/A') {
+                                            shiftText = StorageService.to
+                                                    .getString(StorageService
+                                                        .keyShift) ??
+                                                '';
+                                          }
+                                          String timingText =
+                                              _downloadController.timing.value;
+                                          String finalShift = shiftText
+                                                      .isNotEmpty &&
+                                                  shiftText != 'N/A'
+                                              ? (timingText.isNotEmpty
+                                                  ? '$shiftText ($timingText)'
+                                                  : shiftText)
+                                              : 'Current Session';
                                           return Text(
-                                            _downloadController
-                                                    .shift.value.isNotEmpty
-                                                ? '${_downloadController.shift.value} (${_downloadController.timing.value})'
-                                                : 'Current Session',
+                                            finalShift,
                                             style: GoogleFonts.outfit(
                                               fontSize: 13,
                                               fontWeight: FontWeight.w600,

@@ -35,11 +35,17 @@ class DownloadController extends BaseController {
   }
 
   Future<void> getStoredSessionData() async {
-    centerCode.value = StorageService.to.getString(StorageService.keyCenterCode) ?? "No Code Found";
-    centerName.value = StorageService.to.getString(StorageService.keyCenterName) ?? "No Name Found";
+    String? code = StorageService.to.getString(StorageService.keyCenterCode);
+    centerCode.value = (code != null && code.trim().isNotEmpty && code.trim().toLowerCase() != 'null') ? code.trim() : "";
+
+    String? name = StorageService.to.getString(StorageService.keyCenterName);
+    centerName.value = (name != null && name.trim().isNotEmpty && name.trim().toLowerCase() != 'null') ? name.trim() : "";
+
     shiftStart.value = StorageService.to.getString(StorageService.keyShiftStartTime) ?? "";
     shiftEnd.value = StorageService.to.getString(StorageService.keyShiftEndTime) ?? "";
-    shift.value = StorageService.to.getString(StorageService.keyShift) ?? "Shift 1";
+    
+    String? s = StorageService.to.getString(StorageService.keyShift);
+    shift.value = (s != null && s.trim().isNotEmpty && s.trim() != "N/A") ? s.trim() : "Shift 1";
   }
 
   Future<void> _initDatabase() async {

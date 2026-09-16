@@ -1,6 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:get/get.dart';
+import '../models/operator_profile_model.dart';
 
 class StorageService extends GetxService {
   static StorageService get to {
@@ -37,6 +38,12 @@ class StorageService extends GetxService {
   static const String keyFatherName = 'father_name';
   static const String keyOperatorPhone = 'operator_phone';
   static const String keyOperatorCityState = 'operator_city_state';
+  static const String keyOperatorAddress = 'operator_address';
+  static const String keyOperatorRole = 'operator_role';
+  static const String keyOperatorPhoto = 'operator_photo';
+  static const String keyOperatorAadharFront = 'operator_aadhar_front';
+  static const String keyOperatorAadharBack = 'operator_aadhar_back';
+  static const String keyRegistrarId = 'registrar_id';
   static const String keyShift = 'shift';
   static const String keyGlobalTotal = 'global_total';
   static const String keyGlobalPresent = 'global_present';
@@ -64,6 +71,31 @@ class StorageService extends GetxService {
   Future<bool> setInt(String key, int value) => _prefs.setInt(key, value);
   bool? getBool(String key) => _prefs.getBool(key);
   Future<bool> setBool(String key, bool value) => _prefs.setBool(key, value);
+
+  // --- OPERATOR PROFILE ---
+  Future<void> saveOperatorProfile(OperatorProfile profile) async {
+    if (profile.id.isNotEmpty) await setString(keyOperatorIdDb, profile.id);
+    if (profile.operatorId.isNotEmpty) await setString(keyLoginOperatorId, profile.operatorId);
+    if (profile.registrarId.isNotEmpty) await setString(keyRegistrarId, profile.registrarId);
+    if (profile.name.isNotEmpty) await setString(keyOperatorName, profile.name);
+    if (profile.fatherName.isNotEmpty) await setString(keyFatherName, profile.fatherName);
+    if (profile.mobileNumber.isNotEmpty) await setString(keyOperatorPhone, profile.mobileNumber);
+    if (profile.email.isNotEmpty) await setString(keyOperatorEmail, profile.email);
+    if (profile.address.isNotEmpty) await setString(keyOperatorAddress, profile.address);
+    if (profile.role.isNotEmpty) await setString(keyOperatorRole, profile.role);
+    if (profile.city.isNotEmpty || profile.state.isNotEmpty) {
+      await setString(keyOperatorCityState, "${profile.city}, ${profile.state}".trim());
+    }
+    if (profile.photo.isNotEmpty) await setString(keyOperatorPhoto, profile.photo);
+    if (profile.aadharFront.isNotEmpty) await setString(keyOperatorAadharFront, profile.aadharFront);
+    if (profile.aadharBack.isNotEmpty) await setString(keyOperatorAadharBack, profile.aadharBack);
+  }
+
+  String? getOperatorPhoto() => getString(keyOperatorPhoto);
+  String? getOperatorAddress() => getString(keyOperatorAddress);
+  String? getOperatorRole() => getString(keyOperatorRole);
+  String? getOperatorAadharFront() => getString(keyOperatorAadharFront);
+  String? getOperatorAadharBack() => getString(keyOperatorAadharBack);
 
   Future<void> clearAll() async {
     await _prefs.clear();

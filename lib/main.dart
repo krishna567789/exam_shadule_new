@@ -1,3 +1,4 @@
+import 'package:exam_shadule_new/controller/download_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -18,11 +19,12 @@ void main() async {
   
   // 2. Register StorageService FIRST so it can be found by others
   final storageService = StorageService();
-  await storageService.init(); // Initialize SharedPreferences inside
+  await storageService.init();
   Get.put(storageService, permanent: true);
   
   // 3. Register ApiService
   Get.put(ApiService(), permanent: true);
+  Get.put(DownloadController());
   
   // 4. Check login state
   bool isLoggedIn = StorageService.to.isLoggedIn();

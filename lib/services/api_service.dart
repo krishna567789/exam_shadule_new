@@ -11,6 +11,7 @@ class ApiService extends GetxService {
   
   static const String urlLogin = "$baseUrl/registrars/login";
   static const String urlCheckProfile = "$baseUrl/operator-users/profile/check";
+  static const String urlMyProfile = "$baseUrl/operator-users/my-profile";
   static const String urlDownload = "$baseUrl/mobile/download";
   static const String urlPhysicalAttendance = "$baseUrl/physical-attendance";
 
@@ -39,6 +40,10 @@ class ApiService extends GetxService {
     final uri = Uri.parse(url + queryString);
     print("API GET REQUEST: $uri");
     return await http.get(uri, headers: _headers);
+  }
+
+  Future<http.Response> getMyProfile() async {
+    return await get(urlMyProfile);
   }
 
   Future<http.Response> post(String url, dynamic body) async {

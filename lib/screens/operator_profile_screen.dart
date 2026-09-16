@@ -30,28 +30,44 @@ class _OperatorProfileScreenState extends State<OperatorProfileScreen> {
     try {
       final prefs = await SharedPreferences.getInstance();
 
-      // Attempt to fetch fresh details from server if ID exists
-      if (prefs.getString('operator_id_db') != null) {
-        await _profileController.fetchOperatorDetails();
-      }
+      // Fetch fresh details from my-profile API
+      await _profileController.fetchOperatorDetails();
 
       setState(() {
-        _profileController.operatorIdController.text = prefs.getString('operator_email') ?? "";
-        _profileController.nameController.text =
-            prefs.getString('operator_name') ?? "";
-        _profileController.fatherController.text =
-            prefs.getString('father_name') ?? "";
-        _profileController.mobileController.text =
-            prefs.getString('operator_phone') ?? "";
+        if (_profileController.operatorIdController.text.isEmpty) {
+          _profileController.operatorIdController.text =
+              prefs.getString('login_operator_id') ??
+                  prefs.getString('operator_email') ??
+                  "";
+        }
+        if (_profileController.nameController.text.isEmpty) {
+          _profileController.nameController.text =
+              prefs.getString('operator_name') ?? "";
+        }
+        if (_profileController.fatherController.text.isEmpty) {
+          _profileController.fatherController.text =
+              prefs.getString('father_name') ?? "";
+        }
+        if (_profileController.mobileController.text.isEmpty) {
+          _profileController.mobileController.text =
+              prefs.getString('operator_phone') ?? "";
+        }
+        if (_profileController.emailController.text.isEmpty) {
+          _profileController.emailController.text =
+              prefs.getString('operator_email') ?? "";
+        }
 
-        String cityState = prefs.getString('operator_city_state') ?? "";
-        if (cityState.contains(',')) {
-          List<String> parts = cityState.split(',');
-          _profileController.cityController.text = parts[0].trim();
-          _profileController.stateController.text =
-              parts.sublist(1).join(',').trim();
-        } else {
-          _profileController.cityController.text = cityState;
+        if (_profileController.cityController.text.isEmpty &&
+            _profileController.stateController.text.isEmpty) {
+          String cityState = prefs.getString('operator_city_state') ?? "";
+          if (cityState.contains(',')) {
+            List<String> parts = cityState.split(',');
+            _profileController.cityController.text = parts[0].trim();
+            _profileController.stateController.text =
+                parts.sublist(1).join(',').trim();
+          } else {
+            _profileController.cityController.text = cityState;
+          }
         }
 
         _isLoading = false;
@@ -80,10 +96,13 @@ class _OperatorProfileScreenState extends State<OperatorProfileScreen> {
       return;
     }
 
-    if (_profileController.profileImage.value == null ||
-        _profileController.frontImage.value == null ||
-        _profileController.backImage.value == null) {
-      Get.snackbar("Error", "Please capture all required photos",
+    if ((_profileController.profileImage.value == null &&
+            _profileController.photoUrl.value.isEmpty) ||
+        (_profileController.frontImage.value == null &&
+            _profileController.aadharFrontUrl.value.isEmpty) ||
+        (_profileController.backImage.value == null &&
+            _profileController.aadharBackUrl.value.isEmpty)) {
+      Get.snackbar("Error", "Please capture or upload all required photos",
           backgroundColor: AppTheme.errorRed, colorText: Colors.white);
       return;
     }
@@ -167,7 +186,6 @@ class _OperatorProfileScreenState extends State<OperatorProfileScreen> {
   @override
   Widget build(BuildContext context) {
     const Color cyberBlue = Color(0xFF2196F3);
-    const Color cyberCyan = Color(0xFF64B5F6);
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -232,12 +250,17 @@ class _OperatorProfileScreenState extends State<OperatorProfileScreen> {
                                       child: imageFile != null
                                           ? Image.file(imageFile,
                                               fit: BoxFit.cover)
-                                          : Container(
-                                              color:
-                                                  Colors.grey.withOpacity(0.1),
-                                              child: const Icon(Icons.person,
-                                                  size: 50, color: cyberBlue),
-                                            ),
+                                          : _profileController.photoUrl.value.isNotEmpty
+                                              ? Image.network(
+                                                  _profileController.photoUrl.value,
+                                                  fit: BoxFit.cover,
+                                                )
+                                              : Container(
+                                                  color:
+                                                      Colors.grey.withOpacity(0.1),
+                                                  child: const Icon(Icons.person,
+                                                      size: 50, color: cyberBlue),
+                                                ),
                                     ),
                                   ),
                                   Positioned(
@@ -347,6 +370,8 @@ class _OperatorProfileScreenState extends State<OperatorProfileScreen> {
                                           label: "Front Side",
                                           file: _profileController
                                               .frontImage.value,
+                                          networkUrl: _profileController
+                                              .aadharFrontUrl.value,
                                           onTap: () => _showImageSourceDialog(
                                               false,
                                               isFront: true),
@@ -356,6 +381,8 @@ class _OperatorProfileScreenState extends State<OperatorProfileScreen> {
                                           label: "Back Side",
                                           file: _profileController
                                               .backImage.value,
+                                          networkUrl: _profileController
+                                              .aadharBackUrl.value,
                                           onTap: () => _showImageSourceDialog(
                                               false,
                                               isFront: false),
@@ -461,6 +488,7 @@ class _OperatorProfileScreenState extends State<OperatorProfileScreen> {
   Widget _buildImagePickerBox(
       {required String label,
       required File? file,
+      String? networkUrl,
       required VoidCallback onTap}) {
     return Expanded(
       child: GestureDetector(
@@ -477,18 +505,22 @@ class _OperatorProfileScreenState extends State<OperatorProfileScreen> {
               ? ClipRRect(
                   borderRadius: BorderRadius.circular(8),
                   child: Image.file(file, fit: BoxFit.cover))
-              : Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.add_a_photo_outlined,
-                        color: Theme.of(context).primaryColor),
-                    const SizedBox(height: 4),
-                    Text(label,
-                        style: GoogleFonts.outfit(
-                            fontSize: 10,
-                            color: Theme.of(context).primaryColor)),
-                  ],
-                ),
+              : (networkUrl != null && networkUrl.isNotEmpty)
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(networkUrl, fit: BoxFit.cover))
+                  : Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.add_a_photo_outlined,
+                            color: Theme.of(context).primaryColor),
+                        const SizedBox(height: 4),
+                        Text(label,
+                            style: GoogleFonts.outfit(
+                                fontSize: 10,
+                                color: Theme.of(context).primaryColor)),
+                      ],
+                    ),
         ),
       ),
     );

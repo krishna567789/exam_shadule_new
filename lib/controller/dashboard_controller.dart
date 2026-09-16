@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'package:exam_shadule_new/controller/download_controller.dart';
 import 'package:exam_shadule_new/services/storage_service.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -8,6 +7,8 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import '../models/operator_profile_model.dart';
+import '../services/api_service.dart';
 import '../services/notification_service.dart';
 
 class DashboardController extends GetxController {
@@ -20,6 +21,13 @@ class DashboardController extends GetxController {
   final RxString operatorEmail = ''.obs;
   final RxString operatorCityState = ''.obs;
   final RxString fatherName = ''.obs;
+  final RxString operatorId = ''.obs;
+  final RxString operatorRole = ''.obs;
+  final RxString operatorAddress = ''.obs;
+  final RxString operatorPhoto = ''.obs;
+  final RxString operatorAadharFront = ''.obs;
+  final RxString operatorAadharBack = ''.obs;
+  final RxBool isProfileLoading = false.obs;
   final RxString centerCapacity = ''.obs;
 
   // Global Stats
@@ -39,6 +47,7 @@ class DashboardController extends GetxController {
   void onInit() {
     super.onInit();
     getStoredData();
+    fetchOperatorProfile();
     _initConnectivityListener();
   }
 
@@ -62,20 +71,36 @@ class DashboardController extends GetxController {
     super.onClose();
   }
 
-  void getStoredData() async {
-    centerCode.value = StorageService.to.getString(StorageService.keyCenterCode) ?? 'No Code Found';
-    centerName.value = StorageService.to.getString(StorageService.keyCenterName) ?? 'No Name Found';
-    examName.value = StorageService.to.getString(StorageService.keyCenterName) ?? ''; // Using center name as school name if exam name empty
+  void getStoredData() {
+    String? code = StorageService.to.getString(StorageService.keyCenterCode);
+    centerCode.value = (code != null && code.trim().isNotEmpty && code.trim().toLowerCase() != 'null') 
+        ? code.trim() 
+        : '';
+
+    String? name = StorageService.to.getString(StorageService.keyCenterName);
+    centerName.value = (name != null && name.trim().isNotEmpty && name.trim().toLowerCase() != 'null') 
+        ? name.trim() 
+        : '';
     
     // Check if actual exam name exists
     String? storedExam = StorageService.to.getString(StorageService.keyExamName);
-    if(storedExam != null && storedExam.isNotEmpty) examName.value = storedExam;
+    if (storedExam != null && storedExam.trim().isNotEmpty) {
+      examName.value = storedExam.trim();
+    } else {
+      examName.value = centerName.value; // Fallback to center name
+    }
 
     operatorName.value = StorageService.to.getString(StorageService.keyOperatorName) ?? 'N/A';
     operatorPhone.value = StorageService.to.getString(StorageService.keyOperatorPhone) ?? 'N/A';
     operatorEmail.value = StorageService.to.getString(StorageService.keyOperatorEmail) ?? 'N/A';
     operatorCityState.value = StorageService.to.getString(StorageService.keyOperatorCityState) ?? 'N/A';
     fatherName.value = StorageService.to.getString(StorageService.keyFatherName) ?? 'N/A';
+    operatorId.value = StorageService.to.getString(StorageService.keyLoginOperatorId) ?? StorageService.to.getString(StorageService.keyOperatorEmail) ?? 'N/A';
+    operatorRole.value = StorageService.to.getOperatorRole() ?? 'operator';
+    operatorAddress.value = StorageService.to.getOperatorAddress() ?? 'N/A';
+    operatorPhoto.value = StorageService.to.getOperatorPhoto() ?? '';
+    operatorAadharFront.value = StorageService.to.getOperatorAadharFront() ?? '';
+    operatorAadharBack.value = StorageService.to.getOperatorAadharBack() ?? '';
     
     int? capacity = StorageService.to.getInt(StorageService.keyCenterCapacity);
     centerCapacity.value = capacity != null ? capacity.toString() : 'N/A';
@@ -86,6 +111,41 @@ class DashboardController extends GetxController {
     globalAbsent.value = StorageService.to.getInt(StorageService.keyGlobalAbsent) ?? 0;
 
     refreshLocalStats();
+  }
+
+  Future<void> fetchOperatorProfile() async {
+    try {
+      isProfileLoading.value = true;
+      print("--- FETCHING OPERATOR PROFILE (MY-PROFILE) ---");
+      final response = await ApiService.to.getMyProfile();
+      print("Operator Profile Response (${response.statusCode}): ${response.body}");
+
+      if (response.statusCode == 200) {
+        var responseData = json.decode(response.body);
+        var res = OperatorProfileResponse.fromJson(responseData);
+        if (res.status && res.data?.profile != null) {
+          var profile = res.data!.profile!;
+          await StorageService.to.saveOperatorProfile(profile);
+          await StorageService.to.setBool(StorageService.keyIsProfileCompleted, res.profileCompleted);
+
+          operatorName.value = profile.name;
+          fatherName.value = profile.fatherName;
+          operatorPhone.value = profile.mobileNumber;
+          operatorEmail.value = profile.email;
+          operatorAddress.value = profile.address;
+          operatorCityState.value = "${profile.city}, ${profile.state}".trim();
+          operatorRole.value = profile.role;
+          operatorId.value = profile.operatorId;
+          operatorPhoto.value = profile.photo;
+          operatorAadharFront.value = profile.aadharFront;
+          operatorAadharBack.value = profile.aadharBack;
+        }
+      }
+    } catch (e) {
+      print("Error fetching operator profile: $e");
+    } finally {
+      isProfileLoading.value = false;
+    }
   }
 
   void refreshLocalStats() {
