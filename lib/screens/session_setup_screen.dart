@@ -119,7 +119,6 @@ class _SessionSetupScreenState extends State<SessionSetupScreen> {
                 //   ),
                 // ),
                 const SizedBox(height: 10),
-
                 // Center Details Card
                 _buildHudCard(
                   child: Column(

@@ -110,22 +110,22 @@ class _PhysicalAttendanceScreenState extends State<PhysicalAttendanceScreen> {
               // PDF List
               Expanded(
                 child: Obx(() {
-                  if (controller.scannedPdfs.isEmpty) {
+                  if (controller.selectedFiles.isEmpty) {
                     return Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(Icons.picture_as_pdf_outlined, size: 64, color: Colors.grey.withOpacity(0.3)),
                           const SizedBox(height: 12),
-                          Text("No PDFs created yet.", style: GoogleFonts.outfit(color: Colors.grey)),
+                          Text("No documents created yet.", style: GoogleFonts.outfit(color: Colors.grey)),
                         ],
                       ),
                     );
                   }
                   return ListView.builder(
-                    itemCount: controller.scannedPdfs.length,
+                    itemCount: controller.selectedFiles.length,
                     itemBuilder: (context, index) {
-                      final pdfItem = controller.scannedPdfs[index];
+                      final pdfItem = controller.selectedFiles[index];
                       return _buildPdfListItem(pdfItem, index);
                     },
                   );
@@ -136,8 +136,8 @@ class _PhysicalAttendanceScreenState extends State<PhysicalAttendanceScreen> {
               
               // Upload Button
               Obx(() {
-                final isAnyUploading = controller.scannedPdfs.any((p) => p.isUploading.value);
-                final allUploaded = controller.scannedPdfs.isNotEmpty && controller.scannedPdfs.every((p) => p.isUploaded.value);
+                final isAnyUploading = controller.selectedFiles.any((p) => p.isUploading.value);
+                final allUploaded = controller.selectedFiles.isNotEmpty && controller.selectedFiles.every((p) => p.isUploaded.value);
 
                 return Container(
                   width: double.infinity,
@@ -168,7 +168,7 @@ class _PhysicalAttendanceScreenState extends State<PhysicalAttendanceScreen> {
     );
   }
 
-  Widget _buildPdfListItem(ScannedPdf pdfItem, int index) {
+  Widget _buildPdfListItem(SelectedFile pdfItem, int index) {
     return Card(
       color: Theme.of(context).cardTheme.color,
       elevation: 0,
@@ -185,7 +185,11 @@ class _PhysicalAttendanceScreenState extends State<PhysicalAttendanceScreen> {
             leading: Stack(
               alignment: Alignment.center,
               children: [
-                const Icon(Icons.picture_as_pdf, color: Colors.redAccent, size: 40),
+                Icon(
+                  pdfItem.isPdf ? Icons.picture_as_pdf : Icons.image,
+                  color: pdfItem.isPdf ? Colors.redAccent : Colors.blueAccent,
+                  size: 40,
+                ),
                 if (pdfItem.isUploaded.value)
                   const Positioned(
                     right: 0,
@@ -229,7 +233,7 @@ class _PhysicalAttendanceScreenState extends State<PhysicalAttendanceScreen> {
     );
   }
 
-  void _showPdfPreview(ScannedPdf pdfItem) {
+  void _showPdfPreview(SelectedFile pdfItem) {
     if (!pdfItem.file.existsSync()) {
       Get.snackbar(
         'Error',
@@ -265,13 +269,17 @@ class _PhysicalAttendanceScreenState extends State<PhysicalAttendanceScreen> {
             Expanded(
               child: ClipRRect(
                 borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
-                child: PDFView(
-                  filePath: pdfItem.file.path,
-                  enableSwipe: true,
-                  swipeHorizontal: true,
-                  autoSpacing: false,
-                  pageFling: false,
-                ),
+                child: pdfItem.isPdf
+                  ? PDFView(
+                      filePath: pdfItem.file.path,
+                      enableSwipe: true,
+                      swipeHorizontal: true,
+                      autoSpacing: false,
+                      pageFling: false,
+                    )
+                  : InteractiveViewer(
+                      child: Image.file(pdfItem.file, fit: BoxFit.contain),
+                    ),
               ),
             ),
           ],
