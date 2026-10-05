@@ -146,7 +146,8 @@ class DashboardController extends GetxController {
     } finally {
       isProfileLoading.value = false;
     }
-  }
+   }
+   
 
   void refreshLocalStats() {
     var box = Hive.box('candidates_box');
@@ -182,12 +183,12 @@ class DashboardController extends GetxController {
       Map<String, dynamic> existing =
           Map<String, dynamic>.from(student['biometricData'] as Map);
 
-      String template =
-          _cleanBase64(existing['TemplateBase64'] ?? fallbackTemplate);
+      // Writer 'Left_TemplateBase64' key likhti hai; 'TemplateBase64' kabhi hota hi nahi tha
+      String template = _cleanBase64(existing['Left_TemplateBase64'] ?? "");
+      if (template.isEmpty) template = _cleanBase64(existing['TemplateBase64'] ?? "");
       if (template.isEmpty) template = fallbackTemplate;
 
-      String rightTemplate =
-          _cleanBase64(existing['Right_TemplateBase64'] ?? template);
+      String rightTemplate = _cleanBase64(existing['Right_TemplateBase64'] ?? "");
       if (rightTemplate.isEmpty) rightTemplate = template;
 
       String wsqImg = leftBase64.isNotEmpty
