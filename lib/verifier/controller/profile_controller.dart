@@ -82,7 +82,7 @@ class VerifierProfileController extends BaseController {
   Future<void> submitProfile() async {
     if (!_validate()) return;
     try {
-      showLoading();
+      showLoading(withDialog: false);
       final request = await VerifierApiService.to.multipartRequest(VerifierApiService.urlCreateProfile);
       request.fields.addAll({
         'name': nameCtl.text.trim(),

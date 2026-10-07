@@ -22,7 +22,7 @@ class VerifierCandidatesController extends BaseController {
 
   Future<void> loadCandidates() async {
     try {
-      showLoading();
+      showLoading(withDialog: false);
       final res = await VerifierApiService.to.get(VerifierApiService.urlCandidates);
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body);
@@ -46,7 +46,7 @@ class VerifierCandidatesController extends BaseController {
       return;
     }
     try {
-      showLoading();
+      showLoading(withDialog: false);
       final res = await VerifierApiService.to
           .get(VerifierApiService.urlCandidateSearch, queryParams: {'rollNo': q});
       if (res.statusCode == 200) {

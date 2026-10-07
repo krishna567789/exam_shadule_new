@@ -59,14 +59,18 @@ class VerifierApiService extends GetxService {
       uri = uri.replace(queryParameters: {...uri.queryParameters, ...queryParams});
     }
     print("API GET REQUEST: $uri");
-    return await http.get(uri, headers: _headers);
+    return await http
+        .get(uri, headers: _headers)
+        .timeout(const Duration(seconds: 15));
   }
 
   Future<http.Response> post(String url, dynamic body) async {
     final uri = Uri.parse(url);
     print("API POST REQUEST: $uri");
     print("API BODY: ${json.encode(body)}");
-    return await http.post(uri, headers: _headers, body: json.encode(body));
+    return await http
+        .post(uri, headers: _headers, body: json.encode(body))
+        .timeout(const Duration(seconds: 15));
   }
 
   /// Builder for multipart uploads (verifier profile photo + aadhaar).

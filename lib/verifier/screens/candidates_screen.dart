@@ -128,7 +128,10 @@ class _CandidatesScreenState extends State<VerifierCandidatesScreen> {
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: () => Get.to(() => CandidateDetailScreen(candidateId: c.id)),
+        onTap: () => Get.to(() => VerifierCandidateDetailScreen(
+              candidateId: c.id,
+              candidate: c,
+            )),
         child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(

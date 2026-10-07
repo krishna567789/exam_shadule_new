@@ -5,10 +5,9 @@ class BaseController extends GetxController {
   final _isLoading = false.obs;
   bool get isLoading => _isLoading.value;
 
-  void showLoading() {
+  void showLoading({bool withDialog = true}) {
     _isLoading.value = true;
-    // We can still show a dialog if we want to block the UI
-    if (!Get.isDialogOpen!) {
+    if (withDialog && !(Get.isDialogOpen ?? false)) {
       Get.dialog(
         const Center(
           child: CircularProgressIndicator(color: Color(0xff6388bd)),
@@ -20,7 +19,7 @@ class BaseController extends GetxController {
 
   void hideLoading() {
     _isLoading.value = false;
-    if (Get.isDialogOpen!) {
+    if (Get.isDialogOpen ?? false) {
       Get.back();
     }
   }

@@ -40,7 +40,7 @@ class VerifierLoginController extends BaseController {
     if (!await _checkConnectivity()) return;
 
     try {
-      showLoading();
+      showLoading(withDialog: false);
       final body = {"verifierId": verifierId.trim(), "password": password};
       final res = await VerifierApiService.to.post(VerifierApiService.urlLogin, body);
       print("--- VERIFIER LOGIN ${res.statusCode} ---");

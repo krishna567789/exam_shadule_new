@@ -11,11 +11,13 @@ class DeviceInfoController extends GetxController {
 
   // Fingerprint data storage
   Uint8List? fingerprintImage;    // Raw image bytes
-  Uint8List? fingerprintTemplate; // Template for matching
+  Uint8List? fingerprintTemplate; // SG400 template for matching
+  Uint8List? fingerprintIsoTemplate; // ISO 19794-2 template of the last capture
   var fingerprintImagePath = Rx<String?>(null);
 
   // Extended Biometric & Hardware Metadata
   int? qualityScore;
+  String? lastScanError; // banner ke liye, jab toast suppress ho
   int? imageWidth;
   int? imageHeight;
   int? rawImageSize;
@@ -57,8 +59,10 @@ class DeviceInfoController extends GetxController {
   }
 
   // ✅ SecuGen FDx SDK se fingerprint capture with scanType ('left' or 'right')
-  Future<bool> scanFingerPrint({String scanType = 'left'}) async {
+  /// showToasts=false candidate verify screen bhejti hai (feedback banner me dikhta hai).
+  Future<bool> scanFingerPrint({String scanType = 'left', bool showToasts = true}) async {
     if (isScanningFinger.value) return false;
+    lastScanError = null;
     
     try {
       isScanningFinger.value = true;
@@ -67,14 +71,18 @@ class DeviceInfoController extends GetxController {
       final usbResult = await platform.invokeMethod('checkUsbDevices');
       print("USB Devices: $usbResult");
 
-      // SDK se fingerprint capture karo
-      final result = await platform.invokeMethod('captureFingerprint');
+      // SDK se fingerprint capture karo (scanType native ko finger position batata hai)
+      final result = await platform.invokeMethod('captureFingerprint', {
+        'scanType': scanType,
+      });
 
       if (result != null && result is Map) {
         bool success = result['success'] ?? false;
         if (success) {
           final rawImageBytes = result['image'] != null ? Uint8List.fromList(List<int>.from(result['image'])) : null;
           fingerprintTemplate = result['template'] != null ? Uint8List.fromList(List<int>.from(result['template'])) : null;
+          // Live ISO template — fallback matching ke liye (primary SG400 hai)
+          fingerprintIsoTemplate = result['isoTemplate'] != null ? Uint8List.fromList(List<int>.from(result['isoTemplate'])) : null;
 
           qualityScore = result['quality'];
           imageWidth = result['width'] ?? 300;
@@ -151,13 +159,15 @@ class DeviceInfoController extends GetxController {
             print("🟢 Saved Right Biometric Data payload");
           }
 
-          Get.snackbar(
-            "✅ Success",
-            "Fingerprint ($scanType) scan successful! Quality: ${qualityScore ?? '--'}%",
-            snackPosition: SnackPosition.TOP,
-            backgroundColor: Colors.green,
-            colorText: Colors.white,
-          );
+          if (showToasts) {
+            Get.snackbar(
+              "✅ Success",
+              "Fingerprint ($scanType) scan successful! Quality: ${qualityScore ?? '--'}%",
+              snackPosition: SnackPosition.TOP,
+              backgroundColor: Colors.green,
+              colorText: Colors.white,
+            );
+          }
           return true;
         }
       }
@@ -180,18 +190,22 @@ class DeviceInfoController extends GetxController {
         _                   => 'SecuGen Error (${e.code}): ${e.message}',
       };
 
-      Get.snackbar(
-        e.code == 'SDK_NOT_ADDED' ? "SDK Setup Required" : "Scanner Error",
-        msg,
-        snackPosition: SnackPosition.TOP,
-        backgroundColor: e.code == 'SDK_NOT_ADDED' ? Colors.orange : Colors.red,
-        colorText: Colors.white,
-        duration: const Duration(seconds: 4),
-      );
+      lastScanError = msg;
+      if (showToasts) {
+        Get.snackbar(
+          e.code == 'SDK_NOT_ADDED' ? "SDK Setup Required" : "Scanner Error",
+          msg,
+          snackPosition: SnackPosition.TOP,
+          backgroundColor: e.code == 'SDK_NOT_ADDED' ? Colors.orange : Colors.red,
+          colorText: Colors.white,
+          duration: const Duration(seconds: 4),
+        );
+      }
       return false;
     } catch (e) {
       print("Fingerprint error: $e");
-      if (isScanningFinger.value) {
+      lastScanError = e.toString();
+      if (showToasts && isScanningFinger.value) {
         Get.snackbar("Error", e.toString(),
           snackPosition: SnackPosition.TOP,
           backgroundColor: Colors.red,
@@ -234,17 +248,46 @@ class DeviceInfoController extends GetxController {
     print("╚══════════════════════════════════════════════════════════════════════════╝\n");
   }
 
-  // Template comparison (SDK add hone ke baad use hoga)
-  Future<bool> matchFingerprint(Uint8List template1, Uint8List template2) async {
+  Future<Map<String, dynamic>> matchFingerprint(
+    Uint8List liveTemplate,
+    Uint8List enrolledTemplate, {
+    Uint8List? liveIsoTemplate,
+  }) async {
+    final base = {
+      'matched': false,
+      'score': 0,
+      'technicalError': false,
+      'enrolledFormat': '',
+      'enrolledSize': enrolledTemplate.length,
+      'liveIsoSize': liveIsoTemplate?.length ?? 0,
+      'method': '',
+      'errorCode': null,
+    };
     try {
-      final result = await platform.invokeMethod('matchFingerprint', {
-        'template1': template1,
-        'template2': template2,
+      final dynamic result = await platform.invokeMethod('matchFingerprint', {
+        'template1': liveTemplate,
+        'isoTemplate1': liveIsoTemplate,
+        'template2': enrolledTemplate,
       });
-      return result['matched'] ?? false;
+      if (result is Map) {
+        return {
+          ...base,
+          'matched': result['matched'] == true,
+          'score': result['score'] as int? ?? (result['matched'] == true ? 100 : 0),
+          'technicalError': result['technicalError'] == true,
+          'enrolledFormat': result['enrolledFormat']?.toString() ?? '',
+          'enrolledSize': result['enrolledSize'] as int? ?? enrolledTemplate.length,
+          'liveIsoSize': result['liveIsoSize'] as int? ?? (liveIsoTemplate?.length ?? 0),
+          'method': result['method']?.toString() ?? '',
+          'errorCode': result['errorCode'],
+        };
+      }
+      return base;
     } catch (e) {
       print("Match error: $e");
-      return false;
+      // Native PlatformException (MATCH_EXCEPTION / SDK_INIT_FAILED) is a technical failure,
+      // NOT a biometric mismatch — never auto-reject a candidate for it.
+      return {...base, 'technicalError': true, 'method': e.toString(), 'errorCode': e.toString()};
     }
   }
 
