@@ -10,6 +10,7 @@ import '../utils/app_theme.dart';
 import '../controller/login_controller.dart';
 import '../widgets/custom_text.dart';
 import 'finger_test_screen.dart';
+import '../verifier/screens/login_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -621,6 +622,34 @@ class _LoginScreenState extends State<LoginScreen> {
                                       Theme.of(context).primaryColor,
                                   side: BorderSide(
                                       color: Theme.of(context).primaryColor,
+                                      width: 1.2),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 8),
+                                  textStyle: GoogleFonts.outfit(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Center(
+                              child: OutlinedButton.icon(
+                                onPressed: () {
+                                  Get.to(() => const VerifierLoginScreen());
+                                },
+                                icon: const Icon(Icons.admin_panel_settings,
+                                    size: 14),
+                                label: const Text('VERIFIER CONSOLE LOGIN'),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor:
+                                      Theme.of(context).primaryColor,
+                                  side: BorderSide(
+                                      color:
+                                          Theme.of(context).primaryColor,
                                       width: 1.2),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(8),
