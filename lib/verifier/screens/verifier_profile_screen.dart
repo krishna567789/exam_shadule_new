@@ -28,8 +28,10 @@ class _VerifierProfileScreenState extends State<VerifierProfileScreen> {
     return Scaffold(
       backgroundColor: AppTheme.backgroundDark,
       appBar: AppBar(
-        title: CustomText.heading('VERIFIER PROFILE', fontSize: 16, letterSpacing: 1.5),
+        title: CustomText.heading('VERIFIER PROFILE',
+            fontSize: 16, letterSpacing: 1.5, color: AppTheme.textLight),
         backgroundColor: AppTheme.backgroundDark,
+        foregroundColor: AppTheme.textLight,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),

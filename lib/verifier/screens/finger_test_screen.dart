@@ -218,7 +218,7 @@ class _FingerTestScreenState extends State<VerifierFingerTestScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: CustomText.heading('FINGERPRINT DEVICE TEST',
-            fontSize: 17, letterSpacing: 1.2),
+            fontSize: 17, letterSpacing: 1.2, color: AppTheme.textLight),
       ),
       body: SafeArea(
         child: SingleChildScrollView(

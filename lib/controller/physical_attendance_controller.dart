@@ -200,7 +200,6 @@ class PhysicalAttendanceController extends BaseController {
         );
       }
     }
-
     final output = await _getStorageDirectory();
     final fileName = "attendance_${DateTime.now().millisecondsSinceEpoch}.pdf";
     final file = File("${output.path}/$fileName");
@@ -212,11 +211,6 @@ class PhysicalAttendanceController extends BaseController {
   Future<void> uploadAllPdfs() async {
     if (selectedFiles.isEmpty) {
       showError('Please scan or pick at least one document.');
-      return;
-    }
-
-    if (remarksController.text.trim().isEmpty) {
-      showError('Please enter remarks.');
       return;
     }
 

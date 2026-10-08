@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -26,6 +27,7 @@ class VerifierCandidateDetailController extends BaseController {
   final capturedRightQuality = Rxn<int>();
   final capturedLeftImage = Rxn<Uint8List>();
   final capturedRightImage = Rxn<Uint8List>();
+  final lastScannedTemplate = Rxn<Uint8List>();
   final livePhotoPath = Rx<String?>(null);
   final capturedDevice = ''.obs;
   final remarksCtl = TextEditingController();
@@ -96,6 +98,7 @@ class VerifierCandidateDetailController extends BaseController {
     capturedRightQuality.value = null;
     capturedLeftImage.value = null;
     capturedRightImage.value = null;
+    lastScannedTemplate.value = null;
 
     // Check if templates are already in candidate.biometric
     _extractTemplatesFromBiometric(c.biometric);
@@ -400,6 +403,7 @@ class VerifierCandidateDetailController extends BaseController {
       final scannedTemplate = _device.fingerprintTemplate;
       final scannedIsoTemplate = _device.fingerprintIsoTemplate;
       if (scannedTemplate != null && scannedTemplate.isNotEmpty) {
+        lastScannedTemplate.value = scannedTemplate;
         await matchCapturedFinger(scannedTemplate,
             side: side, isoTemplate: scannedIsoTemplate);
       }
@@ -510,28 +514,54 @@ class VerifierCandidateDetailController extends BaseController {
   Map<String, dynamic> buildPayload() {
     final c = candidate.value!;
     final isMatch = biometricMatch.value;
-    final scores = [
-      matchScore.value,
-      capturedLeftQuality.value,
-      capturedRightQuality.value
-    ].whereType<int>();
-    final avgScore =
-        scores.isEmpty ? 0.0 : scores.reduce((a, b) => a + b) / scores.length;
+    final result = isMatch ? 'MATCH' : 'NO_MATCH';
+
+    double score;
+    if (matchScore.value != null) {
+      score = matchScore.value!.toDouble();
+    } else {
+      final q = [
+        capturedLeftQuality.value,
+        capturedRightQuality.value
+      ].whereType<int>();
+      score = q.isEmpty ? 0 : q.reduce((a, b) => a + b) / q.length;
+    }
+
+    String b64(Uint8List? bytes) =>
+        bytes == null || bytes.isEmpty ? '' : base64Encode(bytes);
+
+    String freshOrStored(Uint8List? captured, String stored) {
+      final fresh = b64(captured);
+      return fresh.isNotEmpty ? fresh : stored.trim();
+    }
+
+    String livePhoto = '';
+    final path = livePhotoPath.value;
+    if (path != null && path.isNotEmpty) {
+      try {
+        final f = File(path);
+        if (f.existsSync()) livePhoto = base64Encode(f.readAsBytesSync());
+      } catch (_) {}
+    }
+    if (livePhoto.isEmpty) livePhoto = c.biometric.livePhoto.trim();
 
     return {
-      'clientSyncId': _uuid.v4(),
-      'candidateId': c.id,
+      'clientSyncId': 'ANDROID-${_uuid.v4()}',
       'verificationStatus': verificationStatus.value,
       'biometricMatch': isMatch,
-      'biometricScore': avgScore,
-      'biometricResult': isMatch ? 'MATCH' : 'NO_MATCH',
-      'capturedDevice': capturedDevice.value.isEmpty
-          ? 'ANDROID-DEVICE'
-          : capturedDevice.value,
-      'biometricJsonUrl': c.biometric.biometricJsonUrl,
-      'leftThumb': c.biometric.leftThumb,
-      'rightThumb': c.biometric.rightThumb,
-      'livePhoto': c.biometric.livePhoto,
+      'biometricScore': score,
+      'biometricResult': result,
+      'leftThumb': freshOrStored(capturedLeftImage.value, c.biometric.leftThumb),
+      'rightThumb':
+          freshOrStored(capturedRightImage.value, c.biometric.rightThumb),
+      'livePhoto': livePhoto,
+      'biometricData': {
+        'template': b64(lastScannedTemplate.value),
+        'score': score,
+        'result': result,
+      },
+      'capturedDevice': 'ANDROID-DEVICE',
+      'deviceId': _device.serialNumber ?? '',
       'remarks': remarksCtl.text.trim(),
     };
   }
@@ -618,7 +648,8 @@ class VerifierCandidateDetailController extends BaseController {
       rollNo: c.rollNo,
       candidateName: c.name,
       verificationStatus: payload['verificationStatus'],
-      payload: payload,
+      // Bulk sync me candidate identify karne ke liye id chahiye hoti hai
+      payload: {...payload, 'candidateId': c.id},
       createdAt: DateTime.now().toIso8601String(),
     );
     await VerifierSyncService.to.enqueue(record);

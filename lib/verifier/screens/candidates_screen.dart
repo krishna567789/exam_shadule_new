@@ -28,7 +28,9 @@ class _CandidatesScreenState extends State<VerifierCandidatesScreen> {
       backgroundColor: AppTheme.backgroundDark,
       appBar: AppBar(
         backgroundColor: AppTheme.backgroundDark,
-        title: CustomText.heading('CANDIDATES', fontSize: 16, letterSpacing: 1.5),
+        foregroundColor: AppTheme.textLight,
+        title: CustomText.heading('CANDIDATES',
+            fontSize: 16, letterSpacing: 1.5, color: AppTheme.textLight),
       ),
       body: Column(
         children: [
@@ -113,7 +115,19 @@ class _CandidatesScreenState extends State<VerifierCandidatesScreen> {
                       color: selected ? AppTheme.backgroundDark : AppTheme.textLight),
                   selected: selected,
                   onSelected: (_) => _c.filter.value = f,
+                  showCheckmark: false,
+                  backgroundColor: AppTheme.surfaceDark,
                   selectedColor: AppTheme.primaryNeon,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                    side: BorderSide(
+                      color: selected
+                          ? AppTheme.primaryNeon
+                          : Colors.white.withOpacity(0.15),
+                    ),
+                  ),
                 ),
               );
             }).toList(),

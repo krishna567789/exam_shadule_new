@@ -33,8 +33,9 @@ class PendingSyncScreen extends StatelessWidget {
       backgroundColor: AppTheme.backgroundDark,
       appBar: AppBar(
         backgroundColor: AppTheme.backgroundDark,
+        foregroundColor: AppTheme.textLight,
         title: CustomText.heading('OFFLINE SYNC QUEUE',
-            fontSize: 16, letterSpacing: 1.5),
+            fontSize: 16, letterSpacing: 1.5, color: AppTheme.textLight),
       ),
       body: Obx(() {
         final items = _s.pending;

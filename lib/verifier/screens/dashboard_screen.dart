@@ -127,7 +127,7 @@ class _DashboardScreenState extends State<VerifierDashboardScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               CustomText.heading('SECURE EXAM',
-                  fontSize: 16, letterSpacing: 1.5),
+                  fontSize: 16, letterSpacing: 1.5, color: AppTheme.textLight),
               CustomText.regular('VERIFIER CONSOLE',
                   fontSize: 10,
                   color: AppTheme.primaryNeon,

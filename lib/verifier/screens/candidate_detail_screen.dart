@@ -49,8 +49,9 @@ class _CandidateDetailScreenState extends State<VerifierCandidateDetailScreen> {
       backgroundColor: AppTheme.backgroundDark,
       appBar: AppBar(
         backgroundColor: AppTheme.backgroundDark,
+        foregroundColor: AppTheme.textLight,
         title: CustomText.heading('VERIFY CANDIDATE',
-            fontSize: 16, letterSpacing: 1.5),
+            fontSize: 16, letterSpacing: 1.5, color: AppTheme.textLight),
       ),
       body: Obx(() {
         if (_c.candidate.value == null) {
@@ -186,7 +187,19 @@ class _CandidateDetailScreenState extends State<VerifierCandidateDetailScreen> {
                                     ? AppTheme.backgroundDark
                                     : AppTheme.textLight)),
                         selected: sel,
+                        showCheckmark: false,
+                        backgroundColor: AppTheme.surfaceDark,
                         selectedColor: _statusColor(s),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                          side: BorderSide(
+                            color: sel
+                                ? _statusColor(s)
+                                : Colors.white.withOpacity(0.15),
+                          ),
+                        ),
                         onSelected: (_) => _c.verificationStatus.value = s,
                       );
                     }).toList(),
