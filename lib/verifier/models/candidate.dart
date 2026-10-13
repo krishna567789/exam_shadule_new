@@ -185,6 +185,7 @@ class Candidate {
   final String attendanceReportId;
   final String lastVerifiedAt;
   final CandidateBiometric biometric;
+  final CandidateBiometric? verificationBiometric;
 
   Candidate({
     this.id = '',
@@ -208,6 +209,7 @@ class Candidate {
     this.attendanceReportId = '',
     this.lastVerifiedAt = '',
     CandidateBiometric? biometricObj,
+    this.verificationBiometric,
   }) : biometric = biometricObj ?? CandidateBiometric();
 
   factory Candidate.fromJson(Map<String, dynamic> json) {
@@ -230,6 +232,14 @@ class Candidate {
     }
     if (json['rightBiometricData'] is Map) {
       bioMap['rightBiometricData'] = json['rightBiometricData'];
+    }
+
+    // Parse dedicated verification biometric if present
+    CandidateBiometric? verBio;
+    if (json['verification'] is Map) {
+      verBio = CandidateBiometric.fromJson(Map<String, dynamic>.from(json['verification'] as Map));
+    } else if (json['verificationData'] is Map) {
+      verBio = CandidateBiometric.fromJson(Map<String, dynamic>.from(json['verificationData'] as Map));
     }
 
     // Merge verification or attendance biometric if present
@@ -288,6 +298,7 @@ class Candidate {
       attendanceReportId: json['attendanceReportId']?.toString() ?? '',
       lastVerifiedAt: json['lastVerifiedAt']?.toString() ?? '',
       biometricObj: bio,
+      verificationBiometric: verBio,
     );
   }
 

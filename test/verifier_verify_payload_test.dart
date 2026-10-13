@@ -34,6 +34,8 @@ void main() {
       'clientSyncId',
       'verificationStatus',
       'biometricMatch',
+      'isManual',
+      'manualVerification',
       'biometricScore',
       'biometricResult',
       'leftThumb',
@@ -47,6 +49,8 @@ void main() {
     expect(payload['clientSyncId'], startsWith('ANDROID-'));
     expect(payload['verificationStatus'], 'verified');
     expect(payload['biometricMatch'], true);
+    expect(payload['isManual'], false);
+    expect(payload['manualVerification'], false);
     expect(payload['biometricScore'], 96.0);
     expect(payload['biometricResult'], 'MATCH');
     // No fresh captures -> enrolled values are passed through
@@ -54,7 +58,7 @@ void main() {
     expect(payload['rightThumb'], 'ENROLLED_RIGHT_B64');
     expect(payload['livePhoto'], 'ENROLLED_LIVE_B64');
     final bio = payload['biometricData'] as Map<String, dynamic>;
-    expect(bio.keys.toList(), ['template', 'score', 'result']);
+    expect(bio.keys.toList(), ['template', 'score', 'result', 'isManual']);
     expect(bio['template'], base64Encode(Uint8List.fromList([1, 2, 3])));
     expect(bio['score'], 96.0);
     expect(bio['result'], 'MATCH');

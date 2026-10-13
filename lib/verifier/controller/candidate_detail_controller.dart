@@ -68,19 +68,9 @@ class VerifierCandidateDetailController extends BaseController {
   @override
   void onInit() {
     super.onInit();
-    // Prefill previously captured device scan images if available
-    if (_device.leftFingerprintImage != null) {
-      capturedLeftImage.value = _device.leftFingerprintImage;
-      capturedLeftQuality.value =
-          _device.leftBiometricData['Left_ImageQuality'] as int? ??
-              _device.qualityScore;
-    }
-    if (_device.rightFingerprintImage != null) {
-      capturedRightImage.value = _device.rightFingerprintImage;
-      capturedRightQuality.value =
-          _device.rightBiometricData['Right_ImageQuality'] as int? ??
-              _device.qualityScore;
-    }
+    // Do NOT prefill previously captured device scan images.
+    // Captured images on device belong only to verified candidates or live scans.
+    _device.clearBiometricData();
   }
 
   void setCandidate(Candidate c) {
@@ -107,15 +97,17 @@ class VerifierCandidateDetailController extends BaseController {
     capturedLeftImageUrl.value = null;
     capturedRightImageUrl.value = null;
     lastScannedTemplate.value = null;
+    _device.clearBiometricData();
 
-    // Populate captured/device biometrics if candidate already has them
-    _populateCapturedBiometricsFromCandidate(c);
+    final isVerified = initialStatus == 'verified';
 
-    if (initialStatus == 'verified') {
+    if (isVerified) {
       matchState.value = 'matched';
       matchScore.value = null;
       matchMessage.value = 'Candidate is already verified.';
       biometricMatch.value = true;
+      // Populate captured biometrics ONLY for verified candidate
+      _populateCapturedBiometricsFromCandidate(c);
     } else if (initialStatus == 'rejected') {
       matchState.value = 'mismatch';
       matchScore.value = null;
@@ -128,7 +120,7 @@ class VerifierCandidateDetailController extends BaseController {
       biometricMatch.value = false;
     }
 
-    // Check if templates are already in candidate.biometric
+    // Check if enrolled templates are already in candidate.biometric
     _extractTemplatesFromBiometric(c.biometric);
 
     // Fetch full biometric JSON from biometricJsonUrl
@@ -220,35 +212,47 @@ class VerifierCandidateDetailController extends BaseController {
   }
 
   void _populateCapturedBiometricsFromCandidate(Candidate c) {
-    // 1. Left Thumb
-    if (_device.leftFingerprintImage != null) {
-      capturedLeftImage.value = _device.leftFingerprintImage;
-      capturedLeftQuality.value =
-          _device.leftBiometricData['Left_ImageQuality'] as int? ??
-              _device.qualityScore;
+    final isVerified = c.status.toLowerCase().trim() == 'verified';
+    // Candidates who are NOT verified must NOT have captured finger images pre-populated
+    // "jo candidate verified hai unka hi capture on device me finger ka image ayega"
+    if (!isVerified) {
+      capturedLeftImage.value = null;
       capturedLeftImageUrl.value = null;
-    } else if (c.biometric.leftThumb.isNotEmpty) {
-      capturedLeftImageUrl.value = c.biometric.leftThumb;
-      final bytes = _decodeImageBytes(c.biometric.leftThumb);
+      capturedLeftQuality.value = null;
+      capturedRightImage.value = null;
+      capturedRightImageUrl.value = null;
+      capturedRightQuality.value = null;
+      return;
+    }
+
+    // 1. Left Thumb for verified candidate
+    final verBio = c.verificationBiometric;
+    final leftThumb = (verBio != null && verBio.leftThumb.isNotEmpty)
+        ? verBio.leftThumb
+        : c.biometric.leftThumb;
+    final leftQuality = verBio?.leftQuality ?? c.biometric.leftQuality;
+
+    if (leftThumb.isNotEmpty) {
+      capturedLeftImageUrl.value = leftThumb;
+      final bytes = _decodeImageBytes(leftThumb);
       if (bytes != null) capturedLeftImage.value = bytes;
-      if (c.biometric.leftQuality != null) {
-        capturedLeftQuality.value = c.biometric.leftQuality;
+      if (leftQuality != null) {
+        capturedLeftQuality.value = leftQuality;
       }
     }
 
-    // 2. Right Thumb
-    if (_device.rightFingerprintImage != null) {
-      capturedRightImage.value = _device.rightFingerprintImage;
-      capturedRightQuality.value =
-          _device.rightBiometricData['Right_ImageQuality'] as int? ??
-              _device.qualityScore;
-      capturedRightImageUrl.value = null;
-    } else if (c.biometric.rightThumb.isNotEmpty) {
-      capturedRightImageUrl.value = c.biometric.rightThumb;
-      final bytes = _decodeImageBytes(c.biometric.rightThumb);
+    // 2. Right Thumb for verified candidate
+    final rightThumb = (verBio != null && verBio.rightThumb.isNotEmpty)
+        ? verBio.rightThumb
+        : c.biometric.rightThumb;
+    final rightQuality = verBio?.rightQuality ?? c.biometric.rightQuality;
+
+    if (rightThumb.isNotEmpty) {
+      capturedRightImageUrl.value = rightThumb;
+      final bytes = _decodeImageBytes(rightThumb);
       if (bytes != null) capturedRightImage.value = bytes;
-      if (c.biometric.rightQuality != null) {
-        capturedRightQuality.value = c.biometric.rightQuality;
+      if (rightQuality != null) {
+        capturedRightQuality.value = rightQuality;
       }
     }
   }
@@ -418,8 +422,11 @@ class VerifierCandidateDetailController extends BaseController {
       }
     }
 
-    // Apply Captured Images & Quality (only if no live scan done in this session)
-    if (lastScannedTemplate.value == null) {
+    // Apply Captured Images & Quality (ONLY for verified candidates and if no live scan done in this session)
+    final isVerified = candidate.value?.status.toLowerCase().trim() == 'verified' ||
+        verificationStatus.value == 'verified';
+
+    if (isVerified && lastScannedTemplate.value == null) {
       if (leftImgStr != null && leftImgStr!.isNotEmpty) {
         capturedLeftImageUrl.value = leftImgStr;
         final bytes = _decodeImageBytes(leftImgStr!);
@@ -597,6 +604,7 @@ class VerifierCandidateDetailController extends BaseController {
           attendanceReportId: c.attendanceReportId,
           lastVerifiedAt: c.lastVerifiedAt,
           biometricObj: mergedBio,
+          verificationBiometric: c.verificationBiometric,
         );
       }
     } catch (e) {
@@ -972,6 +980,13 @@ class VerifierCandidateDetailController extends BaseController {
   }
 
   void _markLocalVerified(Candidate c) {
+    String b64(Uint8List? bytes) =>
+        bytes == null || bytes.isEmpty ? '' : base64Encode(bytes);
+    String freshOrStored(Uint8List? captured, String stored) {
+      final fresh = b64(captured);
+      return fresh.isNotEmpty ? fresh : stored.trim();
+    }
+
     final updated = Candidate(
       id: c.id,
       examId: c.examId,
@@ -994,6 +1009,14 @@ class VerifierCandidateDetailController extends BaseController {
       attendanceReportId: c.attendanceReportId,
       lastVerifiedAt: DateTime.now().toIso8601String(),
       biometricObj: c.biometric,
+      verificationBiometric: CandidateBiometric(
+        leftThumb: freshOrStored(capturedLeftImage.value, c.biometric.leftThumb),
+        rightThumb:
+            freshOrStored(capturedRightImage.value, c.biometric.rightThumb),
+        leftQuality: capturedLeftQuality.value,
+        rightQuality: capturedRightQuality.value,
+        status: verificationStatus.value,
+      ),
     );
     candidate.value = updated;
     if (Get.isRegistered<VerifierCandidatesController>()) {
