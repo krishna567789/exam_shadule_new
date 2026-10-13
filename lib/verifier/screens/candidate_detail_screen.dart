@@ -19,7 +19,8 @@ class VerifierCandidateDetailScreen extends StatefulWidget {
   });
 
   @override
-  State<VerifierCandidateDetailScreen> createState() => _CandidateDetailScreenState();
+  State<VerifierCandidateDetailScreen> createState() =>
+      _CandidateDetailScreenState();
 }
 
 class _CandidateDetailScreenState extends State<VerifierCandidateDetailScreen> {
@@ -121,11 +122,41 @@ class _CandidateDetailScreenState extends State<VerifierCandidateDetailScreen> {
               const SizedBox(height: 10),
               Row(
                 children: [
-                  Expanded(child: _netThumb('LEFT', c.biometric.leftThumb)),
+                  Expanded(
+                    child: _netThumb(
+                      'LEFT',
+                      c.biometric.leftThumb,
+                      onTap: () => _showImagePreview(
+                        title: 'Enrolled LEFT Thumb - ${c.name}',
+                        rawData: c.biometric.leftThumb,
+                        isLivePhoto: false,
+                      ),
+                    ),
+                  ),
                   const SizedBox(width: 10),
-                  Expanded(child: _netThumb('RIGHT', c.biometric.rightThumb)),
+                  Expanded(
+                    child: _netThumb(
+                      'RIGHT',
+                      c.biometric.rightThumb,
+                      onTap: () => _showImagePreview(
+                        title: 'Enrolled RIGHT Thumb - ${c.name}',
+                        rawData: c.biometric.rightThumb,
+                        isLivePhoto: false,
+                      ),
+                    ),
+                  ),
                   const SizedBox(width: 10),
-                  Expanded(child: _netThumb('LIVE', c.biometric.livePhoto)),
+                  Expanded(
+                    child: _netThumb(
+                      'LIVE',
+                      c.biometric.livePhoto,
+                      onTap: () => _showImagePreview(
+                        title: 'Enrolled LIVE Photo - ${c.name}',
+                        rawData: c.biometric.livePhoto,
+                        isLivePhoto: true,
+                      ),
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 22),
@@ -142,8 +173,9 @@ class _CandidateDetailScreenState extends State<VerifierCandidateDetailScreen> {
                   children: [
                     Expanded(
                       child: _capturedFingerCard(
-                        label: '',
+                        label: 'LEFT',
                         imageBytes: _c.capturedLeftImage.value,
+                        imageUrl: _c.capturedLeftImageUrl.value,
                         quality: _c.capturedLeftQuality.value,
                         isScanning: _c.scanningSide.value == 'left',
                         isMatching: _c.matchingSide.value == 'left',
@@ -155,8 +187,9 @@ class _CandidateDetailScreenState extends State<VerifierCandidateDetailScreen> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: _capturedFingerCard(
-                        label: '',
+                        label: 'RIGHT',
                         imageBytes: _c.capturedRightImage.value,
+                        imageUrl: _c.capturedRightImageUrl.value,
                         quality: _c.capturedRightQuality.value,
                         isScanning: _c.scanningSide.value == 'right',
                         isMatching: _c.matchingSide.value == 'right',
@@ -175,44 +208,129 @@ class _CandidateDetailScreenState extends State<VerifierCandidateDetailScreen> {
                   letterSpacing: 1.5),
               const SizedBox(height: 10),
               _biometricMatchBanner(_c),
-              Obx(() => Wrap(
-                    spacing: 8,
-                    children: ['verified', 'rejected', 'recheck'].map((s) {
+              Obx(() => Row(
+                    children: [
+                      'pending',
+                      'verified',
+                      'rejected',
+                      'recheck'
+                    ].map((s) {
                       final sel = _c.verificationStatus.value == s;
-                      return ChoiceChip(
-                        label: Text(s.toUpperCase(),
-                            style: TextStyle(
-                                fontSize: 12,
-                                color: sel
-                                    ? AppTheme.backgroundDark
-                                    : AppTheme.textLight)),
-                        selected: sel,
-                        showCheckmark: false,
-                        backgroundColor: AppTheme.surfaceDark,
-                        selectedColor: _statusColor(s),
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
-                          side: BorderSide(
-                            color: sel
-                                ? _statusColor(s)
-                                : Colors.white.withOpacity(0.15),
+                      final col = _statusColor(s);
+                      return Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 3),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(20),
+                            onTap: () => _c.verificationStatus.value = s,
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              padding: const EdgeInsets.symmetric(vertical: 9),
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: sel ? col : AppTheme.surfaceDark,
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: sel
+                                      ? col
+                                      : Colors.white.withValues(alpha: 0.15),
+                                  width: sel ? 1.5 : 1,
+                                ),
+                              ),
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  s.toUpperCase(),
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 0.4,
+                                    color: sel
+                                        ? AppTheme.backgroundDark
+                                        : AppTheme.textLight,
+                                  ),
+                                ),
+                              ),
+                            ),
                           ),
                         ),
-                        onSelected: (_) => _c.verificationStatus.value = s,
                       );
                     }).toList(),
                   )),
               const SizedBox(height: 14),
-              Obx(() => SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: CustomText.regular('Biometric Match',
-                        fontSize: 14, color: AppTheme.textLight),
-                    value: _c.biometricMatch.value,
-                    activeColor: AppTheme.successGreen,
-                    onChanged: (v) => _c.biometricMatch.value = v,
-                  )),
+              Obx(() {
+                final isManual = _c.isManualVerification.value;
+                return Container(
+                  margin: const EdgeInsets.symmetric(vertical: 4),
+                  decoration: BoxDecoration(
+                    color: isManual
+                        ? Colors.orange.withOpacity(0.08)
+                        : AppTheme.surfaceDark,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: isManual
+                          ? Colors.orange.withOpacity(0.5)
+                          : Colors.white.withOpacity(0.08),
+                    ),
+                  ),
+                  child: SwitchListTile(
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                    title: Row(
+                      children: [
+                        Text(
+                          'Manual Verification',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color:
+                                isManual ? Colors.orange : AppTheme.textLight,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: (isManual
+                                    ? Colors.orange
+                                    : AppTheme.primaryNeon)
+                                .withOpacity(0.18),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            isManual ? 'MANUAL' : 'BIOMETRIC',
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                              color: isManual
+                                  ? Colors.orange
+                                  : AppTheme.primaryNeon,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    subtitle: Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        isManual
+                            ? 'Manual Mode: Finger matching bypassed. Candidate can capture finger & submit.'
+                            : 'Biometric Mode: Candidate fingerprint match is required to submit.',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: isManual
+                              ? Colors.orange.shade200
+                              : AppTheme.textMuted,
+                        ),
+                      ),
+                    ),
+                    value: isManual,
+                    activeColor: Colors.orange,
+                    onChanged: (v) => _c.toggleManualVerification(v),
+                  ),
+                );
+              }),
               const SizedBox(height: 6),
               TextField(
                 controller: _c.remarksCtl,
@@ -236,12 +354,14 @@ class _CandidateDetailScreenState extends State<VerifierCandidateDetailScreen> {
               ),
               const SizedBox(height: 24),
               Obx(
-                () => CustomButton(
-                  text: 'SUBMIT VERIFICATION',
-                  isLoading: _c.isLoading,
-                  backgroundColor: AppTheme.successGreen,
-                  textColor: Colors.white,
-                  onPressed: _c.submitVerification,
+                () => SafeArea(
+                  child: CustomButton(
+                    text: 'SUBMIT VERIFICATION',
+                    isLoading: _c.isLoading,
+                    backgroundColor: AppTheme.successGreen,
+                    textColor: Colors.white,
+                    onPressed: _c.submitVerification,
+                  ),
                 ),
               ),
               const SizedBox(height: 30),
@@ -252,7 +372,156 @@ class _CandidateDetailScreenState extends State<VerifierCandidateDetailScreen> {
     );
   }
 
+  void _showImagePreview({
+    required String title,
+    String? rawData,
+    Uint8List? bytes,
+    bool isLivePhoto = false,
+  }) {
+    final hasData = (rawData != null && rawData.trim().isNotEmpty) ||
+        (bytes != null && bytes.isNotEmpty);
+    if (!hasData) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black.withOpacity(0.85),
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        child: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(ctx).size.height * 0.82,
+            maxWidth: MediaQuery.of(ctx).size.width * 0.94,
+          ),
+          decoration: BoxDecoration(
+            color: AppTheme.backgroundDark,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: AppTheme.primaryNeon.withOpacity(0.5),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.7),
+                blurRadius: 24,
+                spreadRadius: 6,
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: AppTheme.surfaceDark,
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(15)),
+                  border: Border(
+                    bottom: BorderSide(
+                      color: Colors.white.withOpacity(0.08),
+                    ),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      isLivePhoto ? Icons.person : Icons.fingerprint,
+                      color: AppTheme.primaryNeon,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: const TextStyle(
+                          color: AppTheme.textLight,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close,
+                          color: AppTheme.textLight, size: 20),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      splashRadius: 18,
+                      onPressed: () => Navigator.of(ctx).pop(),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Image Content with InteractiveViewer (pinch-to-zoom / pan)
+              Flexible(
+                child: Container(
+                  width: double.infinity,
+                  color: Colors.black.withOpacity(0.5),
+                  padding: const EdgeInsets.all(12),
+                  child: InteractiveViewer(
+                    panEnabled: true,
+                    minScale: 0.5,
+                    maxScale: 5.0,
+                    child: Center(
+                      child: bytes != null
+                          ? Image.memory(
+                              bytes,
+                              fit: BoxFit.contain,
+                              errorBuilder: (_, __, ___) => const Icon(
+                                Icons.broken_image,
+                                color: Colors.white54,
+                                size: 50,
+                              ),
+                            )
+                          : _smartImage(
+                              rawData!,
+                              isLivePhoto: isLivePhoto,
+                              fit: BoxFit.contain,
+                            ),
+                    ),
+                  ),
+                ),
+              ),
+
+              // Footer with zoom tip
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: const BoxDecoration(
+                  color: AppTheme.surfaceDark,
+                  borderRadius:
+                      BorderRadius.vertical(bottom: Radius.circular(15)),
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.pinch, size: 14, color: AppTheme.primaryNeon),
+                    SizedBox(width: 6),
+                    Text(
+                      'Pinch or drag to zoom and inspect details',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppTheme.textMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _identityCard(String name, String roll, String appId, String photo) {
+    final hasPhoto = photo.trim().isNotEmpty;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -262,18 +531,49 @@ class _CandidateDetailScreenState extends State<VerifierCandidateDetailScreen> {
       ),
       child: Row(
         children: [
-          ClipRRect(
+          InkWell(
             borderRadius: BorderRadius.circular(10),
-            child: Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: photo.isNotEmpty
-                  ? _smartImage(photo, isLivePhoto: true)
-                  : _fallbackAvatar(),
+            onTap: hasPhoto
+                ? () => _showImagePreview(
+                      title: 'Candidate Photo - ${name.isEmpty ? roll : name}',
+                      rawData: photo,
+                      isLivePhoto: true,
+                    )
+                : null,
+            child: Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    width: 64,
+                    height: 64,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: hasPhoto
+                        ? _smartImage(photo, isLivePhoto: true)
+                        : _fallbackAvatar(),
+                  ),
+                ),
+                if (hasPhoto)
+                  Positioned(
+                    right: 2,
+                    bottom: 2,
+                    child: Container(
+                      padding: const EdgeInsets.all(3),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.7),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Icon(
+                        Icons.zoom_in,
+                        size: 13,
+                        color: AppTheme.primaryNeon,
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
           const SizedBox(width: 14),
@@ -322,35 +622,63 @@ class _CandidateDetailScreenState extends State<VerifierCandidateDetailScreen> {
     );
   }
 
-  Widget _netThumb(String label, String url) {
-    return Column(
-      children: [
-        Container(
-          height: 100,
-          width: double.infinity,
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.04),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: url.trim().isNotEmpty
-                  ? AppTheme.primaryNeon.withOpacity(0.4)
-                  : Colors.white.withOpacity(0.1),
+  Widget _netThumb(String label, String url, {VoidCallback? onTap}) {
+    final hasImg = url.trim().isNotEmpty;
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: hasImg ? onTap : null,
+      child: Column(
+        children: [
+          Container(
+            height: 100,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.04),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: hasImg
+                    ? AppTheme.primaryNeon.withOpacity(0.4)
+                    : Colors.white.withOpacity(0.1),
+              ),
+            ),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: _smartImage(url, isLivePhoto: label == 'LIVE'),
+                ),
+                if (hasImg)
+                  Positioned(
+                    right: 4,
+                    bottom: 4,
+                    child: Container(
+                      padding: const EdgeInsets.all(3),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.7),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Icon(
+                        Icons.zoom_in,
+                        size: 14,
+                        color: AppTheme.primaryNeon,
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: _smartImage(url, isLivePhoto: label == 'LIVE'),
-          ),
-        ),
-        const SizedBox(height: 6),
-        CustomText.mono(label, fontSize: 11, color: AppTheme.textMuted),
-      ],
+          const SizedBox(height: 6),
+          CustomText.mono(label, fontSize: 11, color: AppTheme.textMuted),
+        ],
+      ),
     );
   }
 
   Widget _capturedFingerCard({
     required String label,
     required Uint8List? imageBytes,
+    String? imageUrl,
     required int? quality,
     required bool isScanning,
     required bool isMatching,
@@ -359,18 +687,21 @@ class _CandidateDetailScreenState extends State<VerifierCandidateDetailScreen> {
     bool isEnrolled = false,
   }) {
     final showSpinner = isScanning || isMatching;
+    final hasImage = imageBytes != null ||
+        (imageUrl != null && imageUrl.trim().isNotEmpty);
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppTheme.surfaceDark,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: imageBytes != null
+          color: hasImage
               ? AppTheme.primaryNeon
               : (isEnrolled
                   ? AppTheme.successGreen.withOpacity(0.4)
                   : Colors.white.withOpacity(0.12)),
-          width: imageBytes != null ? 1.5 : 1,
+          width: hasImage ? 1.5 : 1,
         ),
       ),
       child: Column(
@@ -426,44 +757,87 @@ class _CandidateDetailScreenState extends State<VerifierCandidateDetailScreen> {
             ],
           ),
           const SizedBox(height: 10),
-          Container(
-            height: 100,
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.35),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: imageBytes != null
-                    ? AppTheme.primaryNeon.withOpacity(0.5)
-                    : Colors.white.withOpacity(0.08),
+          InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: hasImage
+                ? () => _showImagePreview(
+                      title:
+                          'Captured ${label.isNotEmpty ? label : "Device"} Fingerprint${quality != null ? " ($quality%)" : ""}',
+                      bytes: imageBytes,
+                      rawData: imageBytes == null ? imageUrl : null,
+                      isLivePhoto: false,
+                    )
+                : null,
+            child: Container(
+              height: 100,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.35),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: hasImage
+                      ? AppTheme.primaryNeon.withOpacity(0.5)
+                      : Colors.white.withOpacity(0.08),
+                ),
               ),
-            ),
-            child: imageBytes != null
-                ? ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.memory(
-                      imageBytes,
-                      fit: BoxFit.contain,
-                    ),
-                  )
-                : Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+              child: hasImage
+                  ? Stack(
+                      fit: StackFit.expand,
                       children: [
-                        Icon(
-                          Icons.fingerprint,
-                          size: 38,
-                          color: AppTheme.textMuted.withOpacity(0.4),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: imageBytes != null
+                              ? Image.memory(
+                                  imageBytes,
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (_, __, ___) {
+                                    if (imageUrl != null &&
+                                        imageUrl.trim().isNotEmpty) {
+                                      return _smartImage(imageUrl,
+                                          fit: BoxFit.contain);
+                                    }
+                                    return _fallbackThumb(false);
+                                  },
+                                )
+                              : _smartImage(imageUrl!, fit: BoxFit.contain),
                         ),
-                        const SizedBox(height: 4),
-                        const Text(
-                          'No Scan Yet',
-                          style: TextStyle(
-                              fontSize: 10, color: AppTheme.textMuted),
+                        Positioned(
+                          right: 4,
+                          bottom: 4,
+                          child: Container(
+                            padding: const EdgeInsets.all(3),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.7),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Icon(
+                              Icons.zoom_in,
+                              size: 14,
+                              color: AppTheme.primaryNeon,
+                            ),
+                          ),
                         ),
                       ],
+                    )
+                  : Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.fingerprint,
+                            size: 38,
+                            color: AppTheme.textMuted.withOpacity(0.4),
+                          ),
+                          const SizedBox(height: 4),
+                          const Text(
+                            'No Scan Yet',
+                            style: TextStyle(
+                                fontSize: 10, color: AppTheme.textMuted),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
+            ),
           ),
           const SizedBox(height: 10),
           SizedBox(
@@ -486,9 +860,7 @@ class _CandidateDetailScreenState extends State<VerifierCandidateDetailScreen> {
                     ? 'Scanning...'
                     : (isMatching
                         ? 'Matching...'
-                        : (imageBytes == null
-                            ? 'Scan Finger'
-                            : 'Rescan Finger')),
+                        : (hasImage ? 'Rescan Finger' : 'Scan Finger')),
                 style: const TextStyle(fontSize: 12, color: AppTheme.textLight),
               ),
               style: OutlinedButton.styleFrom(
@@ -504,7 +876,8 @@ class _CandidateDetailScreenState extends State<VerifierCandidateDetailScreen> {
     );
   }
 
-  Widget _smartImage(String rawData, {bool isLivePhoto = false}) {
+  Widget _smartImage(String rawData,
+      {bool isLivePhoto = false, BoxFit fit = BoxFit.cover}) {
     final trimmed = rawData.trim();
     if (trimmed.isEmpty) {
       return Center(
@@ -535,7 +908,7 @@ class _CandidateDetailScreenState extends State<VerifierCandidateDetailScreen> {
         final bytes = base64Decode(base64Str);
         return Image.memory(
           bytes,
-          fit: BoxFit.cover,
+          fit: fit,
           errorBuilder: (_, __, ___) => _fallbackThumb(isLivePhoto),
         );
       } catch (_) {}
@@ -550,7 +923,7 @@ class _CandidateDetailScreenState extends State<VerifierCandidateDetailScreen> {
         final bytes = base64Decode(trimmed);
         return Image.memory(
           bytes,
-          fit: BoxFit.cover,
+          fit: fit,
           errorBuilder: (_, __, ___) => _fallbackThumb(isLivePhoto),
         );
       } catch (_) {}
@@ -565,7 +938,7 @@ class _CandidateDetailScreenState extends State<VerifierCandidateDetailScreen> {
 
     return Image.network(
       fullUrl,
-      fit: BoxFit.cover,
+      fit: fit,
       loadingBuilder: (context, child, progress) {
         if (progress == null) return child;
         return const Center(
@@ -604,7 +977,7 @@ class _CandidateDetailScreenState extends State<VerifierCandidateDetailScreen> {
   Widget _biometricMatchBanner(VerifierCandidateDetailController c) {
     return Obx(() {
       final state = c.matchState.value;
-      // Kaunsa side abhi busy hai — 'left' | 'right' | null
+      // Which side is currently busy — 'left' | 'right' | null
       final busySide = c.scanningSide.value ?? c.matchingSide.value;
       final isBusy = busySide != null;
       final isJsonLoaded = c.isBiometricJsonLoaded.value;
@@ -631,23 +1004,39 @@ class _CandidateDetailScreenState extends State<VerifierCandidateDetailScreen> {
         desc = isScanningStage
             ? (msg.isNotEmpty
                 ? msg
-                : 'Apna $busySide finger sensor glass par rakhein...')
-            : 'Captured $busySide thumb ko enrolled $sideLabel template se verify kar rahe hain...';
+                : 'Please place your $busySide finger firmly on the sensor glass...')
+            : 'Verifying captured $busySide thumb against enrolled $sideLabel template...';
       } else if (state == 'matched') {
         borderColor = AppTheme.successGreen;
         bgColor = AppTheme.successGreen.withOpacity(0.12);
         iconData = Icons.verified_user;
         iconColor = AppTheme.successGreen;
-        title = 'Biometric Verified (Score: $score%)';
+        title = score != null
+            ? 'Biometric Verified (Score: $score%)'
+            : 'Biometric Verified';
         desc = msg.isNotEmpty
             ? msg
             : 'Fingerprint matched enrolled biometric! Status set to VERIFIED.';
+      } else if (c.isManualVerification.value) {
+        borderColor = Colors.orange;
+        bgColor = Colors.orange.withOpacity(0.12);
+        iconData =
+            state == 'manual_captured' ? Icons.fingerprint : Icons.touch_app;
+        iconColor = Colors.orange;
+        title = state == 'manual_captured'
+            ? 'Finger Captured (Manual Verification)'
+            : 'Manual Verification Active';
+        desc = msg.isNotEmpty
+            ? msg
+            : 'Biometric matching bypassed. Candidate can scan finger and submit verification manually.';
       } else if (state == 'mismatch') {
         borderColor = AppTheme.errorRed;
         bgColor = AppTheme.errorRed.withOpacity(0.12);
         iconData = Icons.gpp_bad;
         iconColor = AppTheme.errorRed;
-        title = 'Biometric Mismatch (Score: $score%)';
+        title = score != null
+            ? 'Biometric Mismatch (Score: $score%)'
+            : 'Biometric Mismatch';
         desc = msg.isNotEmpty
             ? msg
             : 'Fingerprint did not match enrolled template. Status set to REJECTED.';
@@ -666,7 +1055,7 @@ class _CandidateDetailScreenState extends State<VerifierCandidateDetailScreen> {
         title = 'Enrolled Template Missing';
         desc = msg.isNotEmpty
             ? msg
-            : 'Is side ka enrolled template JSON me nahi hai — manual verification karein.';
+            : 'Enrolled template for this side is not available — please verify manually.';
       } else {
         final hasLeft = c.enrolledLeftTemplate.value != null;
         final hasRight = c.enrolledRightTemplate.value != null;
@@ -689,10 +1078,10 @@ class _CandidateDetailScreenState extends State<VerifierCandidateDetailScreen> {
             ? 'Enrolled in Database: $enrolledHandName'
             : 'Loading Biometric Data...';
         desc = isJsonLoaded
-            ? 'LEFT button sirf enrolled LEFT thumb se, RIGHT button sirf enrolled RIGHT thumb se match hoga (cross-match nahi).'
+            ? 'LEFT button matches only enrolled LEFT thumb, RIGHT button matches only enrolled RIGHT thumb (no cross-match).'
             : 'Downloading template from biometricJsonUrl...';
 
-        // Dono haath ka stored template identical ho to record kharab hai, scan se pehle hi bata do
+        // If stored templates for both hands are identical, enrolment data is faulty - alert before scan
         if (c.enrolledSidesIdentical.value) {
           borderColor = Colors.amber;
           bgColor = Colors.amber.withOpacity(0.12);
@@ -700,8 +1089,8 @@ class _CandidateDetailScreenState extends State<VerifierCandidateDetailScreen> {
           iconColor = Colors.amber;
           title = 'Enrolment Data Faulty';
           desc =
-              'Server par LEFT aur RIGHT dono ka template same hai (last scanned finger). '
-              'Left finger verify namumik — candidate ko dobara enrol + sync karein.';
+              'Stored templates for both LEFT and RIGHT are identical on the server. '
+              'Finger cannot be reliably verified — please re-enrol and sync candidate.';
         }
       }
 
@@ -764,6 +1153,19 @@ class _CandidateDetailScreenState extends State<VerifierCandidateDetailScreen> {
                         fontWeight: FontWeight.bold,
                         color: AppTheme.successGreen)),
               )
+            else if (c.isManualVerification.value)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Text('MANUAL',
+                    style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.orange)),
+              )
             else if (state == 'mismatch')
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -784,11 +1186,14 @@ class _CandidateDetailScreenState extends State<VerifierCandidateDetailScreen> {
   }
 
   Color _statusColor(String s) {
-    switch (s) {
+    switch (s.toLowerCase().trim()) {
       case 'verified':
         return AppTheme.successGreen;
       case 'rejected':
         return AppTheme.errorRed;
+      case 'recheck':
+        return Colors.amber;
+      case 'pending':
       default:
         return Colors.orange;
     }

@@ -17,7 +17,7 @@ class DeviceInfoController extends GetxController {
 
   // Extended Biometric & Hardware Metadata
   int? qualityScore;
-  String? lastScanError; // banner ke liye, jab toast suppress ho
+  String? lastScanError; // for display banner when toasts are suppressed
   int? imageWidth;
   int? imageHeight;
   int? rawImageSize;
@@ -58,8 +58,8 @@ class DeviceInfoController extends GetxController {
     }
   }
 
-  // ✅ SecuGen FDx SDK se fingerprint capture with scanType ('left' or 'right')
-  /// showToasts=false candidate verify screen bhejti hai (feedback banner me dikhta hai).
+  // ✅ SecuGen FDx SDK fingerprint capture with scanType ('left' or 'right')
+  /// showToasts=false is passed by candidate verify screen (feedback displayed in banner).
   Future<bool> scanFingerPrint({String scanType = 'left', bool showToasts = true}) async {
     if (isScanningFinger.value) return false;
     lastScanError = null;
@@ -67,11 +67,11 @@ class DeviceInfoController extends GetxController {
     try {
       isScanningFinger.value = true;
       
-      // USB devices pehle check karo
+      // Check USB devices first
       final usbResult = await platform.invokeMethod('checkUsbDevices');
       print("USB Devices: $usbResult");
 
-      // SDK se fingerprint capture karo (scanType native ko finger position batata hai)
+      // Capture fingerprint via SDK (scanType tells native code finger position)
       final result = await platform.invokeMethod('captureFingerprint', {
         'scanType': scanType,
       });
@@ -81,7 +81,7 @@ class DeviceInfoController extends GetxController {
         if (success) {
           final rawImageBytes = result['image'] != null ? Uint8List.fromList(List<int>.from(result['image'])) : null;
           fingerprintTemplate = result['template'] != null ? Uint8List.fromList(List<int>.from(result['template'])) : null;
-          // Live ISO template — fallback matching ke liye (primary SG400 hai)
+          // Live ISO template — fallback for matching (primary format is SG400)
           fingerprintIsoTemplate = result['isoTemplate'] != null ? Uint8List.fromList(List<int>.from(result['isoTemplate'])) : null;
 
           qualityScore = result['quality'];

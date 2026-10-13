@@ -47,7 +47,7 @@ flutter {
 }
 
 dependencies {
-    // SecuGen FDx SDK — libs/ folder mein .aar file rakhne ke baad automatically load hoga
+    // SecuGen FDx SDK — loaded automatically after placing .aar files into libs/ folder
     implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar", "*.aar"))))
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }

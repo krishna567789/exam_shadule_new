@@ -19,8 +19,11 @@ import 'verifier/controller/candidates_controller.dart';
 import 'verifier/screens/dashboard_screen.dart';
 import 'verifier/screens/verifier_profile_screen.dart';
 
+import 'package:google_fonts/google_fonts.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  GoogleFonts.config.allowRuntimeFetching = false;
 
   // 1. Initialize Persistent Storages
   await NotificationService().init();

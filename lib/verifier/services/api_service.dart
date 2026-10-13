@@ -23,12 +23,14 @@ class VerifierApiService extends GetxService {
   // --- Data ---
   static const String urlDashboard = "$apiPrefix/mobile/dashboard";
   static const String urlCandidates = "$apiPrefix/mobile/candidates";
-  static const String urlCandidateSearch = "$apiPrefix/mobile/candidates/search";
+  static const String urlCandidateSearch =
+      "$apiPrefix/mobile/candidates/search";
 
   // --- Verification / sync ---
   static const String urlSync = "$apiPrefix/mobile/sync";
   static String urlVerify(String candidateId) =>
       "$urlCandidates/$candidateId/verify";
+
   static String urlCandidateDetail(String candidateId) =>
       "$urlCandidates/$candidateId";
 
@@ -36,14 +38,14 @@ class VerifierApiService extends GetxService {
     String? token;
     try {
       token = VerifierStorageService.to.getToken();
+      print('TOKEN:  ${token}');
     } catch (_) {
       // VerifierStorageService not registered yet
     }
     return {
       'Accept': 'application/json',
       'Content-Type': 'application/json',
-      if (token != null && token.isNotEmpty)
-        'Authorization': 'Bearer $token',
+      if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
     };
   }
 
@@ -53,15 +55,17 @@ class VerifierApiService extends GetxService {
     return h;
   }
 
-  Future<http.Response> get(String url, {Map<String, String>? queryParams}) async {
+  Future<http.Response> get(String url,
+      {Map<String, String>? queryParams}) async {
     Uri uri = Uri.parse(url);
     if (queryParams != null && queryParams.isNotEmpty) {
-      uri = uri.replace(queryParameters: {...uri.queryParameters, ...queryParams});
+      uri = uri
+          .replace(queryParameters: {...uri.queryParameters, ...queryParams});
     }
     print("API GET REQUEST: $uri");
     return await http
         .get(uri, headers: _headers)
-        .timeout(const Duration(seconds: 15));
+        .timeout(const Duration(seconds: 40));
   }
 
   Future<http.Response> post(String url, dynamic body) async {
@@ -70,7 +74,7 @@ class VerifierApiService extends GetxService {
     print("API BODY: ${json.encode(body)}");
     return await http
         .post(uri, headers: _headers, body: json.encode(body))
-        .timeout(const Duration(seconds: 15));
+        .timeout(const Duration(seconds: 40));
   }
 
   /// Builder for multipart uploads (verifier profile photo + aadhaar).

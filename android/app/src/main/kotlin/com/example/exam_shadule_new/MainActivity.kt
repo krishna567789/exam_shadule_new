@@ -15,11 +15,11 @@ import io.flutter.plugin.common.MethodChannel
 
 // ============================================================
 // SecuGen FDx SDK Integration
-// HU20 (Hamster IV) ke liye — koi RD Service, koi certificate nahi chahiye
+// For HU20 (Hamster IV) — no RD Service or certificates required
 // SDK download: https://www.secugen.com/products/sdk_android.htm
 // ============================================================
 
-// NOTE: Ye imports SDK add karne ke baad uncomment karo:
+// NOTE: Uncomment these imports after adding SDK:
 import SecuGen.FDxSDKPro.JSGFPLib
 import SecuGen.FDxSDKPro.SGFDxDeviceName
 import SecuGen.FDxSDKPro.SGFDxErrorCode
@@ -433,14 +433,14 @@ class MainActivity : FlutterFragmentActivity() {
 
                 val enrolledTrimmed = trimToTemplateSize(enrolled)
                 val enrolledName = templateFormatName(enrolledTrimmed)
-                // Header se format na mila ho tab hi ANSI/SG400 guesses try karo
+                // Only try ANSI/SG400 guesses if header format is not detected
                 val enrolledGuesses =
                     if (enrolledName != "UNKNOWN") listOf(enrolledName) else listOf("ISO", "ANSI", "SG400")
 
                 val liveIsoTrimmed = liveIso?.takeIf { it.isNotEmpty() }?.let { trimToTemplateSize(it) }
                 val liveSgTrimmed = liveSg400?.takeIf { it.isNotEmpty() }
                 val livePairs = ArrayList<Pair<ByteArray, String>>()
-                // Same-format candidate pehle try hota hai — usi ka error result me report hota hai
+                // Try same-format candidate first — report its error in result
                 if (enrolledName == "SG400") {
                     liveSgTrimmed?.let { livePairs.add(Pair(it, "LIVE_SG400")) }
                     liveIsoTrimmed?.let { livePairs.add(Pair(it, "LIVE_ISO")) }
@@ -461,7 +461,7 @@ class MainActivity : FlutterFragmentActivity() {
                         val lFmt = formatCode(if (liveLabel == "LIVE_SG400") "SG400" else "ISO")
                         matchedFlag[0] = false
                         val err = matchPair(live, lFmt, enrolledTrimmed, eFmt, matchedFlag)
-                        // Pehla attempt (detected format wala) authoritative hai — uska hi error report karo
+                        // First attempt (detected format) is authoritative — report its error
                         if (primaryErr == null) primaryErr = err
                         if (usedMethod == "none") usedMethod = "$liveLabel/$enrolledGuess"
                         if (matchedFlag[0]) {

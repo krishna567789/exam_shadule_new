@@ -27,6 +27,8 @@ class VerifierCandidateDetailController extends BaseController {
   final capturedRightQuality = Rxn<int>();
   final capturedLeftImage = Rxn<Uint8List>();
   final capturedRightImage = Rxn<Uint8List>();
+  final capturedLeftImageUrl = Rxn<String>();
+  final capturedRightImageUrl = Rxn<String>();
   final lastScannedTemplate = Rxn<Uint8List>();
   final livePhotoPath = Rx<String?>(null);
   final capturedDevice = ''.obs;
@@ -37,26 +39,29 @@ class VerifierCandidateDetailController extends BaseController {
   final enrolledRightTemplate = Rxn<Uint8List>();
   final isBiometricJsonLoaded = false.obs;
   final enrolledSidesIdentical =
-      false.obs; // server par dono haath ka template same hai
+      false.obs; // both left and right enrolled templates are identical on the server
   final matchState = 'waiting'
       .obs; // 'waiting' | 'matched' | 'mismatch' | 'no_template' | 'error'
   final matchScore = Rxn<int>();
   final matchMessage = ''.obs;
 
-  // Kaunsa side button currently busy hai — sirf usi tap kiye par loading dikhega
+  // Which side button is currently busy — spinner shows only on tapped side
   final scanningSide = Rxn<String>();
   final matchingSide = Rxn<String>();
 
   final isDetailLoading = false.obs;
   final detailErrorMessage = Rxn<String>();
 
-  // Operator decision: 'verified' | 'rejected' | 'recheck'
-  final verificationStatus = 'verified'.obs;
+  // Operator decision: 'pending' | 'verified' | 'rejected' | 'recheck'
+  final verificationStatus = 'pending'.obs;
   final biometricMatch = false.obs;
+
+  /// Switch: false = Biometric Mode (candidate finger must match), true = Manual Verification (bypasses match)
+  final isManualVerification = false.obs;
 
   DeviceInfoController get _device => Get.find<DeviceInfoController>();
 
-  /// Koi bhi side scan/match chal raha ho to dusre side ka button block karo.
+  /// Block other scan/match button while an operation is in progress.
   bool get anyScanInProgress =>
       scanningSide.value != null || matchingSide.value != null;
 
@@ -85,20 +90,43 @@ class VerifierCandidateDetailController extends BaseController {
         : 'ANDROID-DEVICE';
     detailErrorMessage.value = null;
 
+    final initialStatus = c.status.toLowerCase().trim();
+    verificationStatus.value =
+        initialStatus.isNotEmpty ? initialStatus : 'pending';
+
     // Reset biometric match state and templates for the selected candidate
     enrolledLeftTemplate.value = null;
     enrolledRightTemplate.value = null;
     isBiometricJsonLoaded.value = false;
     enrolledSidesIdentical.value = false;
-    matchState.value = 'waiting';
-    matchScore.value = null;
-    matchMessage.value = '';
-    biometricMatch.value = false;
+    isManualVerification.value = false;
     capturedLeftQuality.value = null;
     capturedRightQuality.value = null;
     capturedLeftImage.value = null;
     capturedRightImage.value = null;
+    capturedLeftImageUrl.value = null;
+    capturedRightImageUrl.value = null;
     lastScannedTemplate.value = null;
+
+    // Populate captured/device biometrics if candidate already has them
+    _populateCapturedBiometricsFromCandidate(c);
+
+    if (initialStatus == 'verified') {
+      matchState.value = 'matched';
+      matchScore.value = null;
+      matchMessage.value = 'Candidate is already verified.';
+      biometricMatch.value = true;
+    } else if (initialStatus == 'rejected') {
+      matchState.value = 'mismatch';
+      matchScore.value = null;
+      matchMessage.value = 'Candidate was previously rejected.';
+      biometricMatch.value = false;
+    } else {
+      matchState.value = 'waiting';
+      matchScore.value = null;
+      matchMessage.value = '';
+      biometricMatch.value = false;
+    }
 
     // Check if templates are already in candidate.biometric
     _extractTemplatesFromBiometric(c.biometric);
@@ -107,7 +135,37 @@ class VerifierCandidateDetailController extends BaseController {
     _fetchBiometricJson(c);
   }
 
-  /// base64 me newline/data-URI ho to plain base64Decode fail ho jata hai.
+  void toggleManualVerification(bool val) {
+    isManualVerification.value = val;
+    if (val) {
+      verificationStatus.value = 'verified';
+      if (matchState.value != 'matched') {
+        matchState.value = lastScannedTemplate.value != null
+            ? 'manual_captured'
+            : 'manual_mode';
+        matchMessage.value =
+            'Manual verification mode enabled. Biometric matching is bypassed.';
+      }
+    } else {
+      if (matchState.value == 'manual_mode' ||
+          matchState.value == 'manual_captured') {
+        if (biometricMatch.value) {
+          matchState.value = 'matched';
+          verificationStatus.value = 'verified';
+        } else {
+          matchState.value =
+              lastScannedTemplate.value != null ? 'mismatch' : 'waiting';
+          final initialStatus =
+              candidate.value?.status.toLowerCase().trim() ?? 'pending';
+          verificationStatus.value = lastScannedTemplate.value != null
+              ? 'rejected'
+              : (initialStatus.isNotEmpty ? initialStatus : 'pending');
+        }
+      }
+    }
+  }
+
+  /// If base64 contains newlines or data-URI prefix, plain base64Decode fails.
   Uint8List? _decodeTemplate(String raw) {
     final cleaned = raw
         .trim()
@@ -116,7 +174,7 @@ class VerifierCandidateDetailController extends BaseController {
     if (cleaned.isEmpty) return null;
     try {
       final bytes = base64Decode(cleaned);
-      // Khali/chhota blob template nahi ho sakta — slot bharne par candidate galati se reject hoga
+      // Empty or too small blob cannot be a valid template — filling it would cause false rejection
       if (bytes.length < 48) {
         print(
             "⚠️ Biometric blob too short to be a template: ${bytes.length} bytes");
@@ -127,6 +185,272 @@ class VerifierCandidateDetailController extends BaseController {
       print("Template base64 decode failed (${cleaned.length} chars): $e");
       return null;
     }
+  }
+
+  /// Clean and decode base64 fingerprint image (PNG/BMP/WSQ) to Uint8List.
+  Uint8List? _decodeImageBytes(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return null;
+    if (trimmed.startsWith('http://') ||
+        trimmed.startsWith('https://') ||
+        trimmed.startsWith('/') ||
+        trimmed.startsWith('assets/')) {
+      return null;
+    }
+    String cleaned = trimmed;
+    final commaIdx = cleaned.indexOf(',');
+    if (cleaned.startsWith('data:') && commaIdx != -1) {
+      cleaned = cleaned.substring(commaIdx + 1);
+    }
+    cleaned = cleaned.replaceAll(RegExp(r'\s+'), '');
+    if (cleaned.isEmpty) return null;
+
+    final padRemainder = cleaned.length % 4;
+    if (padRemainder > 0) {
+      cleaned += '=' * (4 - padRemainder);
+    }
+
+    try {
+      final bytes = base64Decode(cleaned);
+      if (bytes.length > 50) return bytes;
+    } catch (e) {
+      print("Fingerprint base64 decode note (${cleaned.length} chars): $e");
+    }
+    return null;
+  }
+
+  void _populateCapturedBiometricsFromCandidate(Candidate c) {
+    // 1. Left Thumb
+    if (_device.leftFingerprintImage != null) {
+      capturedLeftImage.value = _device.leftFingerprintImage;
+      capturedLeftQuality.value =
+          _device.leftBiometricData['Left_ImageQuality'] as int? ??
+              _device.qualityScore;
+      capturedLeftImageUrl.value = null;
+    } else if (c.biometric.leftThumb.isNotEmpty) {
+      capturedLeftImageUrl.value = c.biometric.leftThumb;
+      final bytes = _decodeImageBytes(c.biometric.leftThumb);
+      if (bytes != null) capturedLeftImage.value = bytes;
+      if (c.biometric.leftQuality != null) {
+        capturedLeftQuality.value = c.biometric.leftQuality;
+      }
+    }
+
+    // 2. Right Thumb
+    if (_device.rightFingerprintImage != null) {
+      capturedRightImage.value = _device.rightFingerprintImage;
+      capturedRightQuality.value =
+          _device.rightBiometricData['Right_ImageQuality'] as int? ??
+              _device.qualityScore;
+      capturedRightImageUrl.value = null;
+    } else if (c.biometric.rightThumb.isNotEmpty) {
+      capturedRightImageUrl.value = c.biometric.rightThumb;
+      final bytes = _decodeImageBytes(c.biometric.rightThumb);
+      if (bytes != null) capturedRightImage.value = bytes;
+      if (c.biometric.rightQuality != null) {
+        capturedRightQuality.value = c.biometric.rightQuality;
+      }
+    }
+  }
+
+  void _extractBiometricDataFromMap(Map<String, dynamic> rootMap) {
+    String? leftTplStr;
+    String? rightTplStr;
+    String? leftImgStr;
+    String? rightImgStr;
+    int? leftQuality;
+    int? rightQuality;
+    int? bioScore;
+
+    String? findString(Map m, List<String> keys) {
+      for (final k in keys) {
+        if (m[k] != null && m[k].toString().trim().isNotEmpty) {
+          return m[k].toString().trim();
+        }
+      }
+      return null;
+    }
+
+    int? findInt(Map m, List<String> keys) {
+      for (final k in keys) {
+        if (m[k] != null) {
+          final val = int.tryParse(m[k].toString().trim());
+          if (val != null) return val;
+        }
+      }
+      return null;
+    }
+
+    // Deep recursive search in map
+    void searchMap(Map<String, dynamic> map, [String parentKey = '']) {
+      final pLower = parentKey.toLowerCase().replaceAll('_', '');
+
+      map.forEach((k, v) {
+        final keyLower = k.toLowerCase().replaceAll('_', '');
+        final combined = '${pLower}_$keyLower';
+        final isLeft = combined.contains('left') || keyLower.contains('left');
+        final isRight =
+            combined.contains('right') || keyLower.contains('right');
+
+        if (v is String && v.trim().isNotEmpty) {
+          final isTemplate =
+              keyLower.contains('template') || keyLower == 'isotemplate';
+          final isImage = keyLower.contains('bmp') ||
+              keyLower.contains('wsq') ||
+              keyLower.contains('thumb') ||
+              keyLower.contains('finger') ||
+              keyLower.contains('image');
+
+          // Left template
+          if (isTemplate && isLeft) {
+            leftTplStr ??= v;
+          } else if (isTemplate && isRight) {
+            rightTplStr ??= v;
+          } else if (isTemplate && !isRight) {
+            leftTplStr ??= v;
+          }
+
+          // Left image
+          if (isImage && isLeft && v.length > 50) {
+            if (keyLower.contains('bmp') || leftImgStr == null) {
+              leftImgStr = v;
+            }
+          }
+          // Right image
+          else if (isImage && isRight && v.length > 50) {
+            if (keyLower.contains('bmp') || rightImgStr == null) {
+              rightImgStr = v;
+            }
+          }
+        } else if (v is num) {
+          final isQuality =
+              keyLower.contains('quality') || keyLower.contains('score');
+          if (isQuality && isLeft) {
+            leftQuality ??= v.toInt();
+          } else if (isQuality && isRight) {
+            rightQuality ??= v.toInt();
+          } else if (isQuality && !isRight && leftQuality == null) {
+            leftQuality ??= v.toInt();
+          }
+          if (keyLower.contains('biometricscore') || keyLower == 'score') {
+            bioScore ??= v.toInt();
+          }
+        } else if (v is Map) {
+          searchMap(Map<String, dynamic>.from(v), k);
+        } else if (v is List) {
+          for (final item in v) {
+            if (item is Map) searchMap(Map<String, dynamic>.from(item), k);
+          }
+        }
+      });
+    }
+
+    searchMap(rootMap);
+
+    // Direct root / nested key checks
+    leftTplStr ??= findString(rootMap, [
+      'Left_TemplateBase64',
+      'Left_Template',
+      'left_template',
+      'leftTemplate',
+      'leftTemplateBase64',
+      'TemplateBase64'
+    ]);
+    rightTplStr ??= findString(rootMap, [
+      'Right_TemplateBase64',
+      'Right_Template',
+      'right_template',
+      'rightTemplate',
+      'rightTemplateBase64'
+    ]);
+
+    leftImgStr ??= findString(rootMap, [
+      'Left_BMPBase64',
+      'Left_WSQImage',
+      'leftThumb',
+      'left_thumb',
+      'leftThumbUrl',
+      'leftThumbImage',
+      'leftThumbBase64'
+    ]);
+    rightImgStr ??= findString(rootMap, [
+      'Right_BMPBase64',
+      'Right_WSQImage',
+      'rightThumb',
+      'right_thumb',
+      'rightThumbUrl',
+      'rightThumbImage',
+      'rightThumbBase64'
+    ]);
+
+    leftQuality ??= findInt(rootMap, [
+      'Left_ImageQuality',
+      'left_image_quality',
+      'Left_Quality',
+      'leftQuality',
+      'ImageQuality'
+    ]);
+    rightQuality ??= findInt(rootMap, [
+      'Right_ImageQuality',
+      'right_image_quality',
+      'Right_Quality',
+      'rightQuality'
+    ]);
+
+    bioScore ??=
+        findInt(rootMap, ['biometricScore', 'score', 'biometric_score']);
+
+    // Apply Enrolled Templates
+    if (leftTplStr != null && enrolledLeftTemplate.value == null) {
+      final bytes = _decodeTemplate(leftTplStr!);
+      if (bytes != null) {
+        enrolledLeftTemplate.value = bytes;
+        isBiometricJsonLoaded.value = true;
+        print("✅ Enrolled Left Template ${bytes.length} bytes");
+      }
+    }
+    if (rightTplStr != null && enrolledRightTemplate.value == null) {
+      final bytes = _decodeTemplate(rightTplStr!);
+      if (bytes != null) {
+        enrolledRightTemplate.value = bytes;
+        isBiometricJsonLoaded.value = true;
+        print("✅ Enrolled Right Template ${bytes.length} bytes");
+      }
+    }
+
+    // Apply Captured Images & Quality (only if no live scan done in this session)
+    if (lastScannedTemplate.value == null) {
+      if (leftImgStr != null && leftImgStr!.isNotEmpty) {
+        capturedLeftImageUrl.value = leftImgStr;
+        final bytes = _decodeImageBytes(leftImgStr!);
+        if (bytes != null) {
+          capturedLeftImage.value = bytes;
+          print("✅ Captured Left Finger Image decoded (${bytes.length} bytes)");
+        }
+      }
+      if (leftQuality != null) {
+        capturedLeftQuality.value = leftQuality;
+      }
+
+      if (rightImgStr != null && rightImgStr!.isNotEmpty) {
+        capturedRightImageUrl.value = rightImgStr;
+        final bytes = _decodeImageBytes(rightImgStr!);
+        if (bytes != null) {
+          capturedRightImage.value = bytes;
+          print(
+              "✅ Captured Right Finger Image decoded (${bytes.length} bytes)");
+        }
+      }
+      if (rightQuality != null) {
+        capturedRightQuality.value = rightQuality;
+      }
+
+      if (bioScore != null && matchScore.value == null) {
+        matchScore.value = bioScore;
+      }
+    }
+
+    _checkEnrolledSanity();
   }
 
   bool _sameBytes(Uint8List? a, Uint8List? b) {
@@ -187,16 +511,16 @@ class VerifierCandidateDetailController extends BaseController {
       final isExternal = !uri.host.contains('ubroapi.space');
       if (isExternal) {
         try {
-          res = await http.get(uri).timeout(const Duration(seconds: 15));
+          res = await http.get(uri).timeout(const Duration(seconds: 40));
         } catch (_) {
           res = await VerifierApiService.to
               .get(fullUrl)
-              .timeout(const Duration(seconds: 15));
+              .timeout(const Duration(seconds: 40));
         }
       } else {
         res = await VerifierApiService.to
             .get(fullUrl)
-            .timeout(const Duration(seconds: 15));
+            .timeout(const Duration(seconds: 40));
       }
 
       print("📥 Biometric JSON Status: ${res.statusCode}");
@@ -211,69 +535,8 @@ class VerifierCandidateDetailController extends BaseController {
           rootMap = decoded.first as Map<String, dynamic>;
         }
 
-        // Deep search for template strings in the JSON map
-        void searchMap(Map<String, dynamic> map, [String parentKey = '']) {
-          map.forEach((k, v) {
-            final keyLower = k.toLowerCase().replaceAll('_', '');
-            final pLower = parentKey.toLowerCase().replaceAll('_', '');
-            final combined = '${pLower}_$keyLower';
-
-            if (v is String && v.trim().isNotEmpty) {
-              final isTemplate =
-                  keyLower.contains('template') || keyLower == 'isotemplate';
-              final isLeft =
-                  combined.contains('left') || keyLower.contains('left');
-              final isRight =
-                  combined.contains('right') || keyLower.contains('right');
-
-              // Left template
-              if (isTemplate && isLeft) {
-                if (enrolledLeftTemplate.value == null) {
-                  final bytes = _decodeTemplate(v);
-                  if (bytes != null) {
-                    enrolledLeftTemplate.value = bytes;
-                    isBiometricJsonLoaded.value = true;
-                    print(
-                        "✅ Enrolled Left Template ${bytes.length} bytes [${_hexPrefix(bytes)}] from key '$k' (parent '$parentKey')");
-                  }
-                }
-              }
-              // Right template
-              else if (isTemplate && isRight) {
-                if (enrolledRightTemplate.value == null) {
-                  final bytes = _decodeTemplate(v);
-                  if (bytes != null) {
-                    enrolledRightTemplate.value = bytes;
-                    isBiometricJsonLoaded.value = true;
-                    print(
-                        "✅ Enrolled Right Template ${bytes.length} bytes [${_hexPrefix(bytes)}] from key '$k' (parent '$parentKey')");
-                  }
-                }
-              }
-              // Generic template
-              else if (isTemplate &&
-                  enrolledLeftTemplate.value == null &&
-                  !isRight) {
-                final bytes = _decodeTemplate(v);
-                if (bytes != null) {
-                  enrolledLeftTemplate.value = bytes;
-                  isBiometricJsonLoaded.value = true;
-                  print(
-                      "✅ Enrolled Generic Template ${bytes.length} bytes [${_hexPrefix(bytes)}] from key '$k'");
-                }
-              }
-            } else if (v is Map) {
-              searchMap(Map<String, dynamic>.from(v), k);
-            } else if (v is List) {
-              // API aksar records ko array me wrap karta hai (e.g. biometricData: [ {...} ])
-              for (final item in v) {
-                if (item is Map) searchMap(Map<String, dynamic>.from(item), k);
-              }
-            }
-          });
-        }
-
-        searchMap(rootMap);
+        // Deep search and extraction for templates, captured images, and qualities
+        _extractBiometricDataFromMap(rootMap);
 
         final fetchedBio = CandidateBiometric.fromJson(rootMap);
         _extractTemplatesFromBiometric(fetchedBio);
@@ -308,6 +571,8 @@ class VerifierCandidateDetailController extends BaseController {
           status: c.biometric.status.isNotEmpty
               ? c.biometric.status
               : fetchedBio.status,
+          leftQuality: fetchedBio.leftQuality ?? c.biometric.leftQuality,
+          rightQuality: fetchedBio.rightQuality ?? c.biometric.rightQuality,
         );
 
         candidate.value = Candidate(
@@ -360,7 +625,13 @@ class VerifierCandidateDetailController extends BaseController {
         final body = jsonDecode(res.body);
         final data = body is Map ? body['data'] : body;
         if (data is Map<String, dynamic>) {
-          setCandidate(Candidate.fromJson(data));
+          final loadedCand = Candidate.fromJson(data);
+          if (lastScannedTemplate.value == null && !biometricMatch.value) {
+            setCandidate(loadedCand);
+          } else {
+            candidate.value = loadedCand;
+          }
+          _extractBiometricDataFromMap(data);
         } else if (candidate.value == null) {
           detailErrorMessage.value = 'Unexpected candidate detail response';
         }
@@ -393,9 +664,11 @@ class VerifierCandidateDetailController extends BaseController {
       if (side == 'left') {
         capturedLeftQuality.value = q;
         capturedLeftImage.value = _device.leftFingerprintImage;
+        capturedLeftImageUrl.value = null;
       } else {
         capturedRightQuality.value = q;
         capturedRightImage.value = _device.rightFingerprintImage;
+        capturedRightImageUrl.value = null;
       }
       capturedDevice.value = _device.serialNumber ?? capturedDevice.value;
 
@@ -434,11 +707,18 @@ class VerifierCandidateDetailController extends BaseController {
       final thumbName = side == 'left' ? 'LEFT Thumb' : 'RIGHT Thumb';
 
       if (enrolledForSide == null) {
+        if (isManualVerification.value) {
+          matchState.value = 'manual_captured';
+          matchMessage.value =
+              "$thumbName captured (Manual Mode: enrolled template not found)";
+          verificationStatus.value = 'verified';
+          return;
+        }
         matchState.value = 'no_template';
         matchMessage.value =
-            "Candidate ka $thumbName enrolled nahi hai — $side finger verify nahi ho sakta. Manual verification karein.";
+            "Candidate's $thumbName is not enrolled — $side finger cannot be verified. Please perform manual verification.";
         showError(
-            "$thumbName enrolled template biometric JSON me nahi mila. Manual verification karein.");
+            "$thumbName enrolled template not found in biometric JSON. Please perform manual verification.");
         return;
       }
 
@@ -446,13 +726,13 @@ class VerifierCandidateDetailController extends BaseController {
       final String matchDescription =
           "Enrolled ${side == 'left' ? 'Left' : 'Right'} Thumb";
 
-      // Purane enrolment records me dono haath ka slot ek hi template hold karta tha
+      // In older enrolment records, both hands might have stored the same template
       final otherTemplate = side == 'left'
           ? enrolledRightTemplate.value
           : enrolledLeftTemplate.value;
       final sameBothHands = _sameBytes(otherTemplate, primaryTemplate);
       final dataCaution = sameBothHands
-          ? ' (LEFT aur RIGHT dono ka stored template same hai — enrolment data kharab hai, candidate ko dobara enrol karein)'
+          ? ' (Stored templates for LEFT and RIGHT are identical — invalid enrolment data, please re-enrol candidate)'
           : '';
 
       // 2. Perform native matching via SecuGen FDx SDK (format-aware: SG400 / ISO 19794-2 / ANSI)
@@ -475,22 +755,29 @@ class VerifierCandidateDetailController extends BaseController {
         verificationStatus.value = 'verified'; // AUTO STATUS: VERIFIED
         matchMessage.value =
             "$thumbName MATCHED ($matchDescription, score: $score)";
+      } else if (isManualVerification.value) {
+        // Switch is ON: Manual Mode — Candidate's finger captured, match bypassed
+        matchState.value = 'manual_captured';
+        biometricMatch.value = false;
+        verificationStatus.value = 'verified';
+        matchMessage.value =
+            "$thumbName captured (Manual Mode: Score $score%, match not required)";
       } else if (technicalError || sameBothHands) {
-        // Format/SDK failure ya kharab enrolment data — genuine mismatch nahi, auto-reject nahi hoga
+        // Format/SDK failure or invalid enrolment data — not a genuine mismatch, avoid auto-rejecting
         matchState.value = 'error';
         biometricMatch.value = false;
         matchMessage.value = sameBothHands
-            ? "Server par LEFT aur RIGHT dono ka template SAME hai — $side finger verify namumik. Candidate ko dobara enrol + sync karein.$formatNote"
-            : "Enrolled template se matching complete nahi ho payi$formatNote$dataCaution. Status unchanged — manual verification karein.";
+            ? "Stored templates for LEFT and RIGHT are identical on the server — $side finger verification not possible. Please re-enrol and sync candidate.$formatNote"
+            : "Could not complete matching with enrolled template$formatNote$dataCaution. Status unchanged — please perform manual verification.";
         showError(sameBothHands
-            ? "Enrolment data kharab hai (dono haath ka template ek hi). Candidate re-enrol karein — REJECTED mat karein."
-            : "Biometric Alert: Enrolled template match nahi ho paya$dataCaution. Candidate ko REJECTED mat karein.");
+            ? "Enrolment data is invalid (both hands share the same template). Please re-enrol candidate — do not mark as REJECTED."
+            : "Biometric Alert: Could not match enrolled template$dataCaution. Do not mark candidate as REJECTED.");
       } else {
         matchState.value = 'mismatch';
         biometricMatch.value = false;
         verificationStatus.value = 'rejected'; // AUTO STATUS: REJECTED
         matchMessage.value =
-            "$thumbName MISMATCH (is finger ne $matchDescription se match nahi kiya)$formatNote$dataCaution";
+            "$thumbName MISMATCH (finger did not match $matchDescription)$formatNote$dataCaution";
         // showError(
         //   "Biometric Mismatch: $thumbName does NOT match $matchDescription. Status auto-set to REJECTED.",
         // );
@@ -514,7 +801,8 @@ class VerifierCandidateDetailController extends BaseController {
   Map<String, dynamic> buildPayload() {
     final c = candidate.value!;
     final isMatch = biometricMatch.value;
-    final result = isMatch ? 'MATCH' : 'NO_MATCH';
+    final isManual = isManualVerification.value;
+    final result = isMatch ? 'MATCH' : (isManual ? 'MANUAL' : 'NO_MATCH');
 
     double score;
     if (matchScore.value != null) {
@@ -545,10 +833,17 @@ class VerifierCandidateDetailController extends BaseController {
     }
     if (livePhoto.isEmpty) livePhoto = c.biometric.livePhoto.trim();
 
+    String finalRemarks = remarksCtl.text.trim();
+    if (isManual && finalRemarks.isEmpty) {
+      finalRemarks = 'Manual Verification';
+    }
+
     return {
       'clientSyncId': 'ANDROID-${_uuid.v4()}',
       'verificationStatus': verificationStatus.value,
-      'biometricMatch': isMatch,
+      'biometricMatch': isMatch || isManual,
+      'isManual': isManual,
+      'manualVerification': isManual,
       'biometricScore': score,
       'biometricResult': result,
       'leftThumb': freshOrStored(capturedLeftImage.value, c.biometric.leftThumb),
@@ -559,10 +854,11 @@ class VerifierCandidateDetailController extends BaseController {
         'template': b64(lastScannedTemplate.value),
         'score': score,
         'result': result,
+        'isManual': isManual,
       },
       'capturedDevice': 'ANDROID-DEVICE',
       'deviceId': _device.serialNumber ?? '',
-      'remarks': remarksCtl.text.trim(),
+      'remarks': finalRemarks,
     };
   }
 
@@ -571,6 +867,25 @@ class VerifierCandidateDetailController extends BaseController {
     if (c == null) {
       showError('Candidate not loaded');
       return;
+    }
+
+    // Validation when candidate is still in pending status:
+    if (verificationStatus.value == 'pending') {
+      showError(
+        "Please complete verification (scan candidate finger or select status) before submitting.",
+      );
+      return;
+    }
+
+    // Validation when switch is OFF (Biometric Mode):
+    // Verifier candidate ka finger lega aur match hona zaroori hai!
+    if (!isManualVerification.value && verificationStatus.value == 'verified') {
+      if (!biometricMatch.value) {
+        showError(
+          "Biometric match required to verify candidate. Please scan candidate's finger on the device, or turn ON Manual Verification.",
+        );
+        return;
+      }
     }
     final payload = buildPayload();
     final online = await VerifierSyncService.to.isOnline();
@@ -648,7 +963,7 @@ class VerifierCandidateDetailController extends BaseController {
       rollNo: c.rollNo,
       candidateName: c.name,
       verificationStatus: payload['verificationStatus'],
-      // Bulk sync me candidate identify karne ke liye id chahiye hoti hai
+      // Candidate ID is required for identification during bulk sync
       payload: {...payload, 'candidateId': c.id},
       createdAt: DateTime.now().toIso8601String(),
     );
@@ -696,6 +1011,8 @@ class VerifierCandidateDetailController extends BaseController {
     remarksCtl.dispose();
     capturedLeftImage.value = null;
     capturedRightImage.value = null;
+    capturedLeftImageUrl.value = null;
+    capturedRightImageUrl.value = null;
     _device.clearBiometricData();
     super.onClose();
   }

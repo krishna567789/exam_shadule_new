@@ -12,6 +12,8 @@ class CandidateBiometric {
   final String attendanceTime;
   final String capturedDevice;
   final String status;
+  final int? leftQuality;
+  final int? rightQuality;
 
   CandidateBiometric({
     this.biometricJsonUrl = '',
@@ -24,13 +26,15 @@ class CandidateBiometric {
     this.attendanceTime = '',
     this.capturedDevice = '',
     this.status = '',
+    this.leftQuality,
+    this.rightQuality,
   });
 
   factory CandidateBiometric.fromJson(Map<String, dynamic> rawJson) {
     Map<String, dynamic> json = Map<String, dynamic>.from(rawJson);
 
-    // Enrolment app ka sync payload templates ko nested 'biometricData' map me bhejta hai
-    // (Left_TemplateBase64 / Right_TemplateBase64) — unhe root keys ke saath merge karo.
+    // Enrolment app sync payload sends templates in nested 'biometricData' map
+    // (Left_TemplateBase64 / Right_TemplateBase64) — merge them with root keys.
     if (rawJson['biometricData'] is Map) {
       json = {...Map<String, dynamic>.from(rawJson['biometricData'] as Map), ...json};
     }
@@ -39,6 +43,8 @@ class CandidateBiometric {
     String? rightTpl;
     String? leftImg;
     String? rightImg;
+    int? leftQuality;
+    int? rightQuality;
 
     String findVal(Map m, List<String> keys) {
       for (final k in keys) {
@@ -49,6 +55,16 @@ class CandidateBiometric {
       return '';
     }
 
+    int? findInt(Map m, List<String> keys) {
+      for (final k in keys) {
+        if (m[k] != null) {
+          final val = int.tryParse(m[k].toString().trim());
+          if (val != null) return val;
+        }
+      }
+      return null;
+    }
+
     // 1. Check nested left sub-maps
     for (final lk in ['leftBiometricData', 'left_biometric_data', 'left', 'leftThumbData', 'leftBiometric']) {
       if (rawJson[lk] is Map) {
@@ -57,6 +73,8 @@ class CandidateBiometric {
         if (t.isNotEmpty && leftTpl == null) leftTpl = t;
         final img = findVal(lm, ['BMPBase64', 'WSQImage', 'image', 'Image', 'thumbImage', 'thumb', 'Left_WSQImage', 'Left_BMPBase64']);
         if (img.isNotEmpty && leftImg == null) leftImg = img;
+        final q = findInt(lm, ['ImageQuality', 'quality', 'Left_ImageQuality', 'leftQuality', 'left_image_quality']);
+        if (q != null && leftQuality == null) leftQuality = q;
       }
     }
 
@@ -68,6 +86,8 @@ class CandidateBiometric {
         if (t.isNotEmpty && rightTpl == null) rightTpl = t;
         final img = findVal(rm, ['BMPBase64', 'WSQImage', 'image', 'Image', 'thumbImage', 'thumb', 'Right_WSQImage', 'Right_BMPBase64']);
         if (img.isNotEmpty && rightImg == null) rightImg = img;
+        final q = findInt(rm, ['ImageQuality', 'quality', 'Right_ImageQuality', 'rightQuality', 'right_image_quality']);
+        if (q != null && rightQuality == null) rightQuality = q;
       }
     }
 
@@ -92,6 +112,16 @@ class CandidateBiometric {
     ]);
     if (rootRightImg.isNotEmpty) rightImg ??= rootRightImg;
 
+    final rootLeftQ = findInt(json, [
+      'Left_ImageQuality', 'left_image_quality', 'Left_Quality', 'leftQuality', 'ImageQuality', 'qualityScore', 'quality',
+    ]);
+    if (rootLeftQ != null) leftQuality ??= rootLeftQ;
+
+    final rootRightQ = findInt(json, [
+      'Right_ImageQuality', 'right_image_quality', 'Right_Quality', 'rightQuality',
+    ]);
+    if (rootRightQ != null) rightQuality ??= rootRightQ;
+
     // 4. Fallback to generic template if neither is set
     if (leftTpl == null && rightTpl == null) {
       final genTpl = findVal(json, ['TemplateBase64', 'templateBase64', 'Template', 'template', 'isoTemplate', 'IsoTemplate']);
@@ -112,6 +142,8 @@ class CandidateBiometric {
       attendanceTime: findVal(json, ['attendanceTime', 'attendance_time']),
       capturedDevice: findVal(json, ['capturedDevice', 'captured_device', 'device', 'deviceName', 'SerialNumber']),
       status: findVal(json, ['status', 'biometricStatus', 'result']),
+      leftQuality: leftQuality,
+      rightQuality: rightQuality,
     );
   }
 
@@ -126,6 +158,8 @@ class CandidateBiometric {
         'attendanceTime': attendanceTime,
         'capturedDevice': capturedDevice,
         'status': status,
+        if (leftQuality != null) 'leftQuality': leftQuality,
+        if (rightQuality != null) 'rightQuality': rightQuality,
       };
 }
 
@@ -198,11 +232,30 @@ class Candidate {
       bioMap['rightBiometricData'] = json['rightBiometricData'];
     }
 
+    // Merge verification or attendance biometric if present
+    if (json['verification'] is Map) {
+      final v = json['verification'] as Map;
+      for (final k in ['leftThumb', 'rightThumb', 'Left_BMPBase64', 'Right_BMPBase64', 'Left_WSQImage', 'Right_WSQImage', 'Left_ImageQuality', 'Right_ImageQuality', 'livePhoto']) {
+        if (v[k] != null && (bioMap[k] == null || bioMap[k].toString().trim().isEmpty)) {
+          bioMap[k] = v[k];
+        }
+      }
+    }
+    if (json['verificationData'] is Map) {
+      final v = json['verificationData'] as Map;
+      for (final k in ['leftThumb', 'rightThumb', 'Left_BMPBase64', 'Right_BMPBase64', 'Left_WSQImage', 'Right_WSQImage', 'Left_ImageQuality', 'Right_ImageQuality', 'livePhoto']) {
+        if (v[k] != null && (bioMap[k] == null || bioMap[k].toString().trim().isEmpty)) {
+          bioMap[k] = v[k];
+        }
+      }
+    }
+
     // Merge root-level keys if bioMap is missing them
     for (final k in [
       'leftThumb', 'left_thumb', 'leftThumbUrl', 'leftThumbImage', 'Left_BMPBase64', 'Left_WSQImage',
       'rightThumb', 'right_thumb', 'rightThumbUrl', 'rightThumbImage', 'Right_BMPBase64', 'Right_WSQImage',
       'Left_TemplateBase64', 'Right_TemplateBase64', 'leftTemplate', 'rightTemplate', 'templateBase64',
+      'Left_ImageQuality', 'Right_ImageQuality', 'leftQuality', 'rightQuality',
       'livePhoto', 'live_photo', 'livePhotoUrl', 'livePhotoImage',
       'biometricJsonUrl', 'biometric_json_url',
     ]) {

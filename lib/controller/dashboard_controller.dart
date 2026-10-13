@@ -73,42 +73,60 @@ class DashboardController extends GetxController {
 
   void getStoredData() {
     String? code = StorageService.to.getString(StorageService.keyCenterCode);
-    centerCode.value = (code != null && code.trim().isNotEmpty && code.trim().toLowerCase() != 'null') 
-        ? code.trim() 
+    centerCode.value = (code != null &&
+            code.trim().isNotEmpty &&
+            code.trim().toLowerCase() != 'null')
+        ? code.trim()
         : '';
 
     String? name = StorageService.to.getString(StorageService.keyCenterName);
-    centerName.value = (name != null && name.trim().isNotEmpty && name.trim().toLowerCase() != 'null') 
-        ? name.trim() 
+    centerName.value = (name != null &&
+            name.trim().isNotEmpty &&
+            name.trim().toLowerCase() != 'null')
+        ? name.trim()
         : '';
-    
+
     // Check if actual exam name exists
-    String? storedExam = StorageService.to.getString(StorageService.keyExamName);
+    String? storedExam =
+        StorageService.to.getString(StorageService.keyExamName);
     if (storedExam != null && storedExam.trim().isNotEmpty) {
       examName.value = storedExam.trim();
     } else {
       examName.value = centerName.value; // Fallback to center name
     }
 
-    operatorName.value = StorageService.to.getString(StorageService.keyOperatorName) ?? 'N/A';
-    operatorPhone.value = StorageService.to.getString(StorageService.keyOperatorPhone) ?? 'N/A';
-    operatorEmail.value = StorageService.to.getString(StorageService.keyOperatorEmail) ?? 'N/A';
-    operatorCityState.value = StorageService.to.getString(StorageService.keyOperatorCityState) ?? 'N/A';
-    fatherName.value = StorageService.to.getString(StorageService.keyFatherName) ?? 'N/A';
-    operatorId.value = StorageService.to.getString(StorageService.keyLoginOperatorId) ?? StorageService.to.getString(StorageService.keyOperatorEmail) ?? 'N/A';
+    operatorName.value =
+        StorageService.to.getString(StorageService.keyOperatorName) ?? 'N/A';
+    operatorPhone.value =
+        StorageService.to.getString(StorageService.keyOperatorPhone) ?? 'N/A';
+    operatorEmail.value =
+        StorageService.to.getString(StorageService.keyOperatorEmail) ?? 'N/A';
+    operatorCityState.value =
+        StorageService.to.getString(StorageService.keyOperatorCityState) ??
+            'N/A';
+    fatherName.value =
+        StorageService.to.getString(StorageService.keyFatherName) ?? 'N/A';
+    operatorId.value =
+        StorageService.to.getString(StorageService.keyLoginOperatorId) ??
+            StorageService.to.getString(StorageService.keyOperatorEmail) ??
+            'N/A';
     operatorRole.value = StorageService.to.getOperatorRole() ?? 'operator';
     operatorAddress.value = StorageService.to.getOperatorAddress() ?? 'N/A';
     operatorPhoto.value = StorageService.to.getOperatorPhoto() ?? '';
-    operatorAadharFront.value = StorageService.to.getOperatorAadharFront() ?? '';
+    operatorAadharFront.value =
+        StorageService.to.getOperatorAadharFront() ?? '';
     operatorAadharBack.value = StorageService.to.getOperatorAadharBack() ?? '';
-    
+
     int? capacity = StorageService.to.getInt(StorageService.keyCenterCapacity);
     centerCapacity.value = capacity != null ? capacity.toString() : 'N/A';
 
     // Global Stats from API response
-    globalTotal.value = StorageService.to.getInt(StorageService.keyGlobalTotal) ?? 0;
-    globalPresent.value = StorageService.to.getInt(StorageService.keyGlobalPresent) ?? 0;
-    globalAbsent.value = StorageService.to.getInt(StorageService.keyGlobalAbsent) ?? 0;
+    globalTotal.value =
+        StorageService.to.getInt(StorageService.keyGlobalTotal) ?? 0;
+    globalPresent.value =
+        StorageService.to.getInt(StorageService.keyGlobalPresent) ?? 0;
+    globalAbsent.value =
+        StorageService.to.getInt(StorageService.keyGlobalAbsent) ?? 0;
 
     refreshLocalStats();
   }
@@ -118,7 +136,8 @@ class DashboardController extends GetxController {
       isProfileLoading.value = true;
       print("--- FETCHING OPERATOR PROFILE (MY-PROFILE) ---");
       final response = await ApiService.to.getMyProfile();
-      print("Operator Profile Response (${response.statusCode}): ${response.body}");
+      print(
+          "Operator Profile Response (${response.statusCode}): ${response.body}");
 
       if (response.statusCode == 200) {
         var responseData = json.decode(response.body);
@@ -126,7 +145,8 @@ class DashboardController extends GetxController {
         if (res.status && res.data?.profile != null) {
           var profile = res.data!.profile!;
           await StorageService.to.saveOperatorProfile(profile);
-          await StorageService.to.setBool(StorageService.keyIsProfileCompleted, res.profileCompleted);
+          await StorageService.to.setBool(
+              StorageService.keyIsProfileCompleted, res.profileCompleted);
 
           operatorName.value = profile.name;
           fatherName.value = profile.fatherName;
@@ -146,13 +166,13 @@ class DashboardController extends GetxController {
     } finally {
       isProfileLoading.value = false;
     }
-   }
-   
+  }
 
   void refreshLocalStats() {
     var box = Hive.box('candidates_box');
     localTotal.value = box.length;
-    localPresent.value = box.values.where((s) => (s as Map)['attendanceStatus'] == true).length;
+    localPresent.value =
+        box.values.where((s) => (s as Map)['attendanceStatus'] == true).length;
     localAbsent.value = localTotal.value - localPresent.value;
   }
 
@@ -183,12 +203,14 @@ class DashboardController extends GetxController {
       Map<String, dynamic> existing =
           Map<String, dynamic>.from(student['biometricData'] as Map);
 
-      // Writer 'Left_TemplateBase64' key likhti hai; 'TemplateBase64' kabhi hota hi nahi tha
+      // Writer outputs 'Left_TemplateBase64' key; 'TemplateBase64' was never present
       String template = _cleanBase64(existing['Left_TemplateBase64'] ?? "");
-      if (template.isEmpty) template = _cleanBase64(existing['TemplateBase64'] ?? "");
+      if (template.isEmpty)
+        template = _cleanBase64(existing['TemplateBase64'] ?? "");
       if (template.isEmpty) template = fallbackTemplate;
 
-      String rightTemplate = _cleanBase64(existing['Right_TemplateBase64'] ?? "");
+      String rightTemplate =
+          _cleanBase64(existing['Right_TemplateBase64'] ?? "");
       if (rightTemplate.isEmpty) rightTemplate = template;
 
       String wsqImg = leftBase64.isNotEmpty

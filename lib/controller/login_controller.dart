@@ -144,7 +144,14 @@ class LoginController extends BaseController {
     } catch (error) {
       print("Login Exception: $error");
       hideLoading();
-      showError("Server connection failed: $error");
+      final errStr = error.toString().toLowerCase();
+      if (errStr.contains('timeout')) {
+        showError("Server took too long to respond. Please check your internet connection and retry.");
+      } else if (errStr.contains('failed host lookup') || errStr.contains('socketexception')) {
+        showError("No internet connection or unable to reach server. Please check your connection.");
+      } else {
+        showError("Server connection failed: $error");
+      }
     }
   }
 

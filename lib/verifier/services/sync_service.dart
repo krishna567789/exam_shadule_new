@@ -103,7 +103,6 @@ class VerifierSyncService extends GetxService {
               await remove(id);
               success++;
             }
-            // Anything left in the batch that wasn't reported synced -> failed
             final remainingInBatch =
                 batch.where((e) => !syncedIds.contains(e.clientSyncId)).toList();
             failed += remainingInBatch.length;
@@ -136,9 +135,7 @@ class VerifierSyncService extends GetxService {
     }
   }
 
-  /// Best-effort extraction of which clientSyncIds succeeded.
-  /// Falls back to "all in batch" when the response marks overall success,
-  /// since the endpoint reports synced/duplicate/failed individually.
+
   Set<String> _collectSyncedIds(dynamic body, List<PendingVerification> batch) {
     final all = batch.map((e) => e.clientSyncId).toSet();
     if (body is! Map) return all;
